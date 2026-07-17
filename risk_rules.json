@@ -1,0 +1,49 @@
+{
+  "_comment": "These are hard numeric limits. Claude's reasoning/thesis step may NEVER override these values. Any proposed trade that violates a rule here must be rejected before it reaches review_equity_order, with no exceptions regardless of how strong the thesis sounds.",
+
+  "account_number": "YOUR_ACCOUNT_NUMBER_HERE",
+  "starting_capital_usd": 500.00,
+
+  "position_sizing": {
+    "max_position_pct_of_account": 0.20,
+    "max_concurrent_positions": 3,
+    "min_cash_buffer_pct": 0.10
+  },
+
+  "stop_loss": {
+    "hard_stop_pct": 0.07,
+    "enforced_mechanically": true,
+    "note": "Every open position must have this stop checked on every cycle, independent of any new thesis about the stock. A good new narrative does not cancel a stop-loss."
+  },
+
+  "loss_limits": {
+    "daily_loss_limit_pct_of_account": 0.05,
+    "weekly_loss_limit_pct_of_account": 0.10,
+    "action_on_limit_hit": "halt_new_entries_until_manual_review"
+  },
+
+  "universe": {
+    "max_candidates_per_cycle": 20,
+    "min_avg_daily_volume": 1000000,
+    "min_market_cap_usd": 2000000000,
+    "exclude": ["penny_stocks", "leveraged_etfs", "inverse_etfs"]
+  },
+
+  "execution": {
+    "mode": "dry_run",
+    "note": "mode must be manually changed from 'dry_run' to 'live' by the human. Claude must never change this value itself, and must refuse to place live orders while mode is 'dry_run'.",
+    "dry_run_min_cycles_before_live": 10
+  },
+
+  "cadence": {
+    "screening_frequency": "once_daily_after_close",
+    "news_search_budget_per_cycle": 20
+  },
+
+  "signal_thresholds": {
+    "_comment": "A Step-1 candidate qualifies for a Phase A news search + thesis (i.e. counts as a 'notable signal') if it meets ANY ONE of these three, computed from data already pulled in Steps 1-2 (no extra API calls). This is a mechanical gate, not a judgment call. Currently-held positions are exempt and always get a thesis regardless of these thresholds.",
+    "price_move_60d_pct": 0.10,
+    "volume_spike_multiple": 2.0,
+    "pct_from_52wk_extreme": 0.03
+  }
+}

@@ -1,0 +1,6 @@
+{"date": "2026-07-09", "symbol": "EXAMPLE", "stage": "screened", "passed_filters": true, "avg_volume": 5200000, "market_cap": 45000000000}
+{"date": "2026-07-09", "symbol": "EXAMPLE", "stage": "thesis", "thesis": "Guidance raised after earnings beat; volume 2x average", "conviction": "medium", "invalidation": "next quarter guidance walked back", "direction": "long"}
+{"date": "2026-07-09", "symbol": "EXAMPLE", "stage": "risk_check", "proposed_position_pct": 0.18, "passed": true, "concurrent_positions_after": 2}
+{"date": "2026-07-09", "symbol": "EXAMPLE", "stage": "risk_check", "proposed_position_pct": 0.35, "passed": false, "reason": "exceeds max_position_pct_of_account (0.20)"}
+{"date": "2026-07-09", "symbol": "EXAMPLE", "stage": "order", "mode": "dry_run", "action": "buy", "shares": 12, "price": 84.20, "would_execute": true}
+{"date": "2026-07-09", "symbol": "OTHER", "stage": "stop_loss", "entry_price": 100.00, "current_price": 92.50, "stop_pct": 0.07, "triggered": true, "action": "sell_full_position"}
