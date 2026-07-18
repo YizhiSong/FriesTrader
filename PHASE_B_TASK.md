@@ -48,8 +48,8 @@ any condition of that gate on your own judgment.
      re-bought, every single day until Phase A finally refreshes it.
      Keying off `proposal_date` instead means a stale proposal only ever
      gets decided once, no matter how many days it sits un-refreshed.
-     `stop_loss` entries aren't proposal-derived and are exempt from this —
-     they should always run fresh every day regardless.
+     `stop_loss` and `take_profit` entries aren't proposal-derived and are
+     exempt from this — they should always run fresh every day regardless.
    - **Dry-run cycle count**: count the number of **distinct calendar
      dates** (the top-level `"date"` field) that have at least one
      `"stage": "cycle_summary"` entry with `"mode": "dry_run"` —
@@ -66,10 +66,10 @@ any condition of that gate on your own judgment.
 ## Step 4 — Re-verify proposals against fresh opening data
 
 **Resolve sells and classify candidates (do this first):**
-1. Run the Step 5 stop-loss check now (see below for the mechanics) —
-   pull `get_equity_positions` and fresh quotes, and resolve any triggered
-   sells. It has to happen before anything else this cycle depends on
-   knowing current slot occupancy.
+1. Run the Step 5 stop-loss and take-profit checks now (see below for the
+   mechanics) — pull `get_equity_positions` and fresh quotes, and resolve
+   any triggered sells. It has to happen before anything else this cycle
+   depends on knowing current slot occupancy.
 2. Process any `direction: "exit_existing"` candidates from Step 0 now too
    (through the price-staleness check below, then straight to Step 6 as a
    sell) — selling is never gated, so these always go through regardless
@@ -147,15 +147,34 @@ halt (it's an exit, not a new entry). Log `"stage": "stop_loss"`. If
 triggered, treat it as a candidate for Step 6 (sell, side=sell). A good
 thesis never cancels a stop-loss — see `risk_rules.json`'s own note on this.
 
-**Same-cycle cooldown after a stop-loss sell**: if a symbol was just sold
-via stop-loss earlier in this exact cycle, it is **not** eligible to be
-bought (new entry or top-up) later in this same cycle, even if it also
-appears as a fresh `direction: "long"` candidate in today's
-`pending_proposals.jsonl`. Drop it from the merged priority order below
-before ranking, and log it as its own `"stage": "risk_check", "passed": false, "reason": "same-cycle cooldown — stopped out earlier this cycle, not eligible again until a later cycle"`
-line rather than silently omitting it. It becomes a normal candidate again
-starting the next cycle (next weekday run) if it still requalifies through
-Phase A's normal screening — no multi-day cooldown beyond that.
+**Take-profit check (always runs, independent of new candidates):**
+Using the same `get_equity_positions`/quotes pull as the stop-loss check
+above (no need to call again), compute each open position's gain from
+average cost. If it meets or exceeds `take_profit.target_pct`, this is an
+immediate full-position sell — no thesis review needed or allowed, and it
+is never blocked by a loss-limit halt (it's an exit, not a new entry). Log
+`"stage": "take_profit"`. If triggered, treat it as a candidate for Step 6
+(sell, side=sell). A good thesis never cancels a take-profit either — this
+account is short-term oriented, not buy-and-hold — see `risk_rules.json`'s
+own note on this.
+
+**Stop-loss re-entry lock — price-gated, not time-gated**: check
+`trade_log.jsonl` for this symbol's most recent `"stage": "order"` entry
+with `"reason": "stop_loss"` (a stop-out sell). If one exists and no
+later `order` entry for that symbol shows it was bought since, the symbol
+is locked out of any new buy (new entry or top-up) — including later in
+this same cycle — until a fresh quote is **at or below** the price it was
+sold at (that entry's `quote_bid`), no matter how many cycles or days
+have passed, and regardless of thesis quality or conviction. This exists
+specifically to prevent selling at a loss and then buying back at a
+higher price. Before ranking, pull a fresh quote for any candidate with
+an unresolved stop-loss lock and drop it from the merged priority order
+below if the fresh price is above that stop-out price — log it as its
+own line rather than silently omitting it:
+`"stage": "risk_check", "passed": false, "proposal_date": "<candidate's date from pending_proposals.jsonl>", "reason": "stop-loss re-entry lock — current price <X> is above the <Y> it was stopped out at on <date>"`.
+Once the fresh price is at or below the stop-out price, the lock clears
+and it's eligible again as a normal candidate through Phase A's usual
+screening — no separate time-based cooldown on top of this.
 
 **Loss-limit halt check (always runs, gates all new entries and top-ups):**
 Determine today's and this week's account P&L as a percentage of account
@@ -263,8 +282,8 @@ buffer, or the loss-limit halt) and go straight to Step 6 as a sell.
 
 ## Step 6 — Dry run before anything live (order review and the live-order gate)
 
-For every candidate that passed Step 5 (including stop-loss and
-exit_existing sells, and any approved position top-ups):
+For every candidate that passed Step 5 (including stop-loss, take-profit,
+and exit_existing sells, and any approved position top-ups):
 
 1. **Always** call `review_equity_order` first — this is a preview and
    never places anything by itself.
@@ -299,7 +318,7 @@ idempotency check matches against either a `risk_check` or an `order` entry.
 ## Step 7 — Logging
 
 Append every decision from this run to `trade_log.jsonl` — one JSON line
-each: `stop_loss`, `loss_limit_check`, `risk_check` (pass and fail,
+each: `stop_loss`, `take_profit`, `loss_limit_check`, `risk_check` (pass and fail,
 including weekend-gap and price-gap rejections from Step 4, and position
 top-up evaluations from Step 5), and `order` stages, in the same shape
 already used in `trade_log.jsonl` / `trade_log_template.jsonl`. Any entry

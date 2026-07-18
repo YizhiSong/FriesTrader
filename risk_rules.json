@@ -16,6 +16,12 @@
     "note": "Every open position must have this stop checked on every cycle, independent of any new thesis about the stock. A good new narrative does not cancel a stop-loss."
   },
 
+  "take_profit": {
+    "target_pct": 0.15,
+    "enforced_mechanically": true,
+    "note": "Every open position must have this checked on every cycle, independent of any new thesis about the stock — this account is short-term oriented, not buy-and-hold. A good new narrative does not cancel a take-profit any more than it cancels a stop-loss."
+  },
+
   "loss_limits": {
     "daily_loss_limit_pct_of_account": 0.05,
     "weekly_loss_limit_pct_of_account": 0.10,
