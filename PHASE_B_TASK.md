@@ -1,357 +1,290 @@
 # Phase B — Re-verify, Risk Enforcement, Order Review/Execution, and Logging (Automated Daily Task)
 
-This is the automated, unattended second half of this pipeline (see
-`README.md` for the phase-split overview), run every weekday at 8:35am
-Central (5 min after the 9:30am ET open) as a cloud routine. It performs
-**Steps 4–7** of the
-playbook (matching the master playbook's numbering), consuming candidates
-produced by Phase A in `pending_proposals.jsonl`.
+Automated second half of this pipeline (see `README.md`), run every
+weekday 8:35am Central (5 min after 9:30am ET open) as a cloud routine.
+Performs **Steps 4–7**, consuming candidates from Phase A's
+`pending_proposals.jsonl`.
 
-This task is authorized to place real live orders under a narrow, explicit
-condition (see "Live-order gate" in Step 6 below). **That authorization
-must be given explicitly, in advance, by whoever operates this pipeline —
-after being warned that an unattended scheduled task has no human
-confirmation at the moment of execution.** Do not add, remove, or loosen
-any condition of that gate on your own judgment.
+Authorized to place real live orders under a narrow condition (see Step
+6's "Live-order gate"). **That authorization must be given explicitly, in
+advance, by whoever operates this pipeline — after being warned that an
+unattended scheduled task has no human confirmation at the moment of
+execution.** Do not add, remove, or loosen any gate condition on your own
+judgment.
 
 ## Step 0 — Load state (do this first, every run)
 
-1. Read `risk_rules.json` **fresh** — never assume prior values, never cache
-   across runs. Use `account_number` from this file, not a hardcoded value.
-2. Determine today's actual day of week mechanically (e.g. via
-   `TZ='America/Chicago' date +'%A'`) — do not infer weekday from the date
-   string yourself. This matters for the Step 4 weekend-gap check below.
-3. Read `pending_proposals.jsonl`. As of the Phase A update, this file is
-   overwritten each Phase A run and holds only the most recent run's
-   entries — use its `"stage": "thesis"` entries directly as today's
-   candidates (no need to hunt for "the most recent date" across multiple
-   dates anymore; there should only be one). If the file doesn't exist or
-   has no thesis entries, append one `cycle_summary` line (see Step 7)
-   noting nothing to process, and stop — do not error out.
+1. Read `risk_rules.json` **fresh** — never cache across runs. Use its
+   `account_number`, not a hardcoded value.
+2. Determine today's day of week mechanically (e.g.
+   `TZ='America/Chicago' date +'%A'`) — don't infer it from the date
+   string. Needed for Step 4's weekend-gap check.
+3. Read `pending_proposals.jsonl` (overwritten each Phase A run, holds only
+   the latest run — use its `"stage": "thesis"` entries directly as
+   today's candidates). If missing or empty, log a `cycle_summary` noting
+   nothing to process and stop — don't error.
 4. Read `trade_log.jsonl` (if present):
-   - **Idempotency — key off the proposal's own date, not today's.** Every
-     candidate from `pending_proposals.jsonl` carries its own `"date"`
-     field (when Phase A wrote that thesis). For each candidate symbol from
-     step 3, skip it if `trade_log.jsonl` already has a `risk_check` or
-     `order` stage entry for that **same symbol with a matching
-     `proposal_date` field** (see Step 7 — every risk_check/order entry
-     must carry `proposal_date`, copied from the candidate's own `date` in
-     `pending_proposals.jsonl`). Do **not** compare against today's
-     execution date, and do not compare against the top-level `"date"`
-     field on trade_log entries (that always reflects the day the decision
-     was *made*, which changes daily even for the exact same stale
-     proposal). This matters because Phase A overwrites
-     `pending_proposals.jsonl` on its own daily schedule — if it ever fails
-     to run on a given day, the same un-refreshed proposal would otherwise
-     look "new" to every subsequent Phase B run (since the execution date
-     keeps advancing) and get re-evaluated, and potentially re-approved and
-     re-bought, every single day until Phase A finally refreshes it.
-     Keying off `proposal_date` instead means a stale proposal only ever
-     gets decided once, no matter how many days it sits un-refreshed.
-     `stop_loss` and `take_profit` entries aren't proposal-derived and are
-     exempt from this — they should always run fresh every day regardless.
-   - **Dry-run cycle count**: count the number of **distinct calendar
-     dates** (the top-level `"date"` field) that have at least one
-     `"stage": "cycle_summary"` entry with `"mode": "dry_run"` —
-     **not** the raw count of `cycle_summary` entries. If Phase B ever runs
-     more than once on the same date (manual testing, a retry, etc.), that
-     date still only counts once. This number is meant to represent days of
-     validated real-world behavior, not how many times the task happened to
-     execute — those aren't the same thing, and conflating them would let
-     repeated same-day runs reach the live-order threshold far faster than
-     intended. This is the authoritative count of completed dry-run cycles
-     — it must be `>= risk_rules.json.execution.dry_run_min_cycles_before_live`
-     before the live-order gate (Step 6) can ever open.
+   - **Idempotency — key off the proposal's own `date`, not today's.**
+     Skip a candidate if `trade_log.jsonl` already has a `risk_check`/
+     `order` entry for that symbol with a matching `proposal_date` (not
+     the entry's top-level `date`, which reflects when the decision was
+     made and changes daily even for a stale proposal). This matters
+     because if Phase A ever fails to run, an un-refreshed proposal would
+     otherwise look "new" every day and could be re-bought repeatedly;
+     keying off `proposal_date` means it's decided once. `stop_loss`/
+     `take_profit` are exempt — always run fresh.
+   - **Dry-run cycle count**: number of **distinct dates** with a
+     `cycle_summary` entry where `mode: dry_run` — not raw entry count
+     (same-day reruns count once). This represents validated days, not
+     executions, and must be
+     `>= execution.dry_run_min_cycles_before_live` before Step 6's
+     live-order gate can open.
 
 ## Step 4 — Re-verify proposals against fresh opening data
 
 **Resolve sells and classify candidates (do this first):**
-1. Run the Step 5 stop-loss and take-profit checks now (see below for the
-   mechanics) — pull `get_equity_positions` and fresh quotes, and resolve
-   any triggered sells. It has to happen before anything else this cycle
-   depends on knowing current slot occupancy.
-2. Process any `direction: "exit_existing"` candidates from Step 0 now too
-   (through the price-staleness check below, then straight to Step 6 as a
-   sell) — selling is never gated, so these always go through regardless
-   of how full the account is.
-3. Split today's remaining `direction: "long"` candidates into two groups:
-   - **new**: symbol is not currently a live open position — a genuine new
-     entry, and the only kind of candidate that consumes an open slot.
-   - **held**: symbol is already a live open position — a potential
-     top-up (see Step 5). Top-ups never consume or need a slot, and are
-     **always** considered every cycle regardless of how full the account
-     is — buying more of something you already hold is not gated behind
-     "no room for anything else."
-4. Compute `open_slots = max_concurrent_positions - (live positions per
-   get_equity_positions, excluding any just resolved to sell in 1–2 above)`.
-   Only the **new** group can ever consume a slot, and top-ups can't create
-   one either, so this number is fixed for the rest of the cycle unless a
-   **new**-group candidate gets approved in Step 5.
-5. **If `open_slots <= 0`**: no **new**-group candidate can be approved
-   this cycle no matter its merit. Skip the weekend-gap search, the
-   price-staleness re-check, and Step 5's per-candidate work for every
-   candidate in the **new** group only — don't spend API calls or search
-   budget on candidates that can't be acted on either way. Log one
-   lightweight line per skipped new-group candidate instead:
+1. Run Step 5's stop-loss and take-profit checks now (pull
+   `get_equity_positions` and fresh quotes, resolve any triggered sells) —
+   needed before knowing current slot occupancy.
+2. Process any `direction: "exit_existing"` candidates now too (through
+   the staleness check below, then to Step 6 as a sell) — selling is
+   never gated.
+3. Split remaining `direction: "long"` candidates:
+   - **new**: not a live open position — a genuine new entry, the only
+     kind that consumes a slot.
+   - **held**: already a live open position — a potential top-up (Step 5).
+     Top-ups never consume a slot and are always considered regardless of
+     account fullness.
+4. `open_slots = max_concurrent_positions - (live positions per
+   get_equity_positions, excluding sells just resolved)`. Only **new**
+   candidates consume a slot; fixed for the cycle unless one gets
+   approved in Step 5.
+5. **If `open_slots <= 0`**: no **new** candidate can be approved this
+   cycle. Skip the weekend-gap search, staleness check, and Step 5 work
+   for every **new**-group candidate — log instead:
    `"stage": "risk_check", "passed": false, "proposal_date": "<candidate's date from pending_proposals.jsonl>", "reason": "no open slots this cycle (X of Y max already held/approved) — skipped without staleness re-check"`.
-   The **held** group is unaffected by this — continue to the normal flow
-   below for it regardless.
-6. **If `open_slots > 0`**: the **new** group also continues to the normal
-   flow below (slots may still run out partway through Step 5 if enough
-   new entries get approved ahead of a given candidate in priority order —
-   that's an ordinary per-candidate concurrency check, not this upfront
-   short-circuit).
+   **held** group is unaffected.
+6. **If `open_slots > 0`**: **new** group continues normally (slots may
+   still run out mid-Step-5 via ordinary per-candidate concurrency check).
 
-For every **new**-group candidate not already short-circuited by 5, and
-every **held**-group candidate (always, regardless of open slots):
+For every **new** candidate not short-circuited by 5, and every **held**
+candidate (always):
 
 ### Weekend gap (Monday runs only)
 
-A Friday-afternoon proposal is stale in a way an overnight one isn't — 2.5
-days pass with zero screening, not ~16 hours. **If today is Monday** (per
-Step 0.2):
+A Friday proposal is staler than an overnight one — 2.5 days vs ~16
+hours. **If today is Monday**:
 
-1. Before the price-based staleness check below, run **one additional
-   targeted web search per pending proposal** covering Saturday/Sunday
-   (earnings surprises, M&A, guidance changes, major macro events). This
-   is in addition to, not a replacement for, the normal
-   `cadence.news_search_budget_per_cycle` cap from `risk_rules.json` —
-   these Monday searches are a separate, small budget of exactly one per
-   proposal, not subject to that cap.
-2. If anything materially contradicts the original thesis or invalidation
-   criteria from Phase A, drop the proposal — log
+1. Before the price-staleness check, run **one additional targeted search
+   per pending proposal** covering Saturday/Sunday (earnings, M&A,
+   guidance, macro) — separate from and not counted against
+   `cadence.news_search_budget_per_cycle`.
+2. If anything materially contradicts the thesis/invalidation criteria,
+   drop it — log
    `"stage": "risk_check", "passed": false, "proposal_date": "<candidate's date from pending_proposals.jsonl>", "reason": "weekend news invalidated thesis: <what you found>"`
-   — and do not process it further in Steps 5–6.
-3. If nothing turns up, proceed to the price-based check below as usual.
+   — don't process further.
+3. If nothing turns up, proceed to the price-based check.
 
-On any other weekday, skip straight to the price-based check.
+Other weekdays: skip straight to the price-based check.
 
 ### Price-based staleness check (every day)
 
-Pull a fresh quote via `get_equity_quotes` for the candidate — re-verify
-against this morning's opening price, do not reuse Phase A's price from
-the prior close. If the price gapped significantly (e.g. large overnight
-or weekend move), treat the original thesis as potentially stale rather
-than assuming it still holds — re-check it against the thesis's own
-`invalidation` criteria from Phase A. If the gap plausibly invalidates the
-thesis, drop it the same way as the weekend-gap check above.
+Pull a fresh quote (`get_equity_quotes`) — re-verify against this
+morning's open, not Phase A's prior-close price. If the price gapped
+significantly, re-check against the thesis's `invalidation` criteria; if
+the gap plausibly invalidates it, drop it as above.
 
 ## Step 5 — Mechanical risk enforcement
 
 **Stop-loss check (always runs, independent of new candidates):**
-Pull current `get_equity_positions` and fresh `get_equity_quotes` for every
-open position. For each, compute drawdown from average cost. If it meets or
-exceeds `stop_loss.hard_stop_pct`, this is an immediate full-position sell —
-no thesis review needed or allowed, and it is never blocked by a loss-limit
-halt (it's an exit, not a new entry). Log `"stage": "stop_loss"`. If
-triggered, treat it as a candidate for Step 6 (sell, side=sell). A good
-thesis never cancels a stop-loss — see `risk_rules.json`'s own note on this.
+Pull current `get_equity_positions` and fresh `get_equity_quotes` for
+every open position; compute drawdown from average cost. If it meets or
+exceeds `stop_loss.hard_stop_pct`, immediate full-position sell — no
+thesis review, never blocked by a loss-limit halt (it's an exit). Log
+`"stage": "stop_loss"`; if triggered, treat as a Step 6 sell candidate. A
+good thesis never cancels a stop-loss — see `risk_rules.json`'s note.
 
 **Take-profit check (always runs, independent of new candidates):**
-Using the same `get_equity_positions`/quotes pull as the stop-loss check
-above (no need to call again), compute each open position's gain from
-average cost. If it meets or exceeds `take_profit.target_pct`, this is an
-immediate full-position sell — no thesis review needed or allowed, and it
-is never blocked by a loss-limit halt (it's an exit, not a new entry). Log
-`"stage": "take_profit"`. If triggered, treat it as a candidate for Step 6
-(sell, side=sell). A good thesis never cancels a take-profit either — this
-account is short-term oriented, not buy-and-hold — see `risk_rules.json`'s
-own note on this.
+Using the same pull as the stop-loss check (no need to call again),
+compute each position's gain from average cost. If it meets or exceeds
+`take_profit.target_pct`, immediate full-position sell — no thesis review,
+never blocked by a loss-limit halt. Log `"stage": "take_profit"`; if
+triggered, treat as a Step 6 sell candidate. A good thesis never cancels a
+take-profit either — this account is short-term, not buy-and-hold — see
+`risk_rules.json`'s note.
 
 **Stop-loss re-entry lock — price-gated, not time-gated**: check
 `trade_log.jsonl` for this symbol's most recent `"stage": "order"` entry
-with `"reason": "stop_loss"` (a stop-out sell). If one exists and no
-later `order` entry for that symbol shows it was bought since, the symbol
-is locked out of any new buy (new entry or top-up) — including later in
-this same cycle — until a fresh quote is **at or below** the price it was
-sold at (that entry's `quote_bid`), no matter how many cycles or days
-have passed, and regardless of thesis quality or conviction. This exists
+with `"reason": "stop_loss"` (a stop-out sell). This lock only applies if
+that sell actually executed — confirm via `get_equity_positions` that the
+symbol is genuinely not held (or was fully closed and re-opened since).
+A `dry_run` stop-loss entry never actually closed the position, so if
+`get_equity_positions` still shows the same open position, there was no
+real exit and nothing to re-enter — the lock does not apply, and the
+symbol should be evaluated as a normal held position (e.g. a top-up),
+not dropped. When the sell did actually execute and no later `order`
+entry for that symbol shows it was bought since, the symbol is locked
+out of any new buy (new entry or top-up) — including later in this same
+cycle — until a fresh quote is **at or below** the price it was sold at
+(that entry's `quote_bid`), no matter how many cycles or days have
+passed, and regardless of thesis quality or conviction. This exists
 specifically to prevent selling at a loss and then buying back at a
 higher price. Before ranking, pull a fresh quote for any candidate with
-an unresolved stop-loss lock and drop it from the merged priority order
-below if the fresh price is above that stop-out price — log it as its
-own line rather than silently omitting it:
+an unresolved (actually-executed) stop-loss lock and drop it from the
+merged priority order below if the fresh price is above that stop-out
+price — log it as its own line rather than silently omitting it:
 `"stage": "risk_check", "passed": false, "proposal_date": "<candidate's date from pending_proposals.jsonl>", "reason": "stop-loss re-entry lock — current price <X> is above the <Y> it was stopped out at on <date>"`.
 Once the fresh price is at or below the stop-out price, the lock clears
 and it's eligible again as a normal candidate through Phase A's usual
 screening — no separate time-based cooldown on top of this.
 
 **Loss-limit halt check (always runs, gates all new entries and top-ups):**
-Determine today's and this week's account P&L as a percentage of account
-value, using `get_pnl_trade_history` / `get_realized_pnl` and
-`get_portfolio`, compared against `starting_capital_usd` in
-`risk_rules.json`. If either the daily or weekly drawdown meets or exceeds
-`loss_limits.daily_loss_limit_pct_of_account` /
-`loss_limits.weekly_loss_limit_pct_of_account`, set `entries_halted = true`
-for this run. **If the P&L data cannot be determined cleanly for any
-reason, fail safe: treat it as breached and set `entries_halted = true`.**
-This halts **both** new entries and top-ups — a top-up still increases
-exposure and spends cash, so it's treated the same as a new entry here,
-even though it's exempt from the concurrency/slot check. Log this
-determination as its own line, `"stage": "loss_limit_check"`.
+Determine today's and this week's account P&L as % of account value
+(`get_pnl_trade_history`/`get_realized_pnl` and `get_portfolio`, vs
+`starting_capital_usd`). If daily or weekly drawdown meets/exceeds
+`loss_limits.daily_loss_limit_pct_of_account`/`weekly_loss_limit_pct_of_account`,
+set `entries_halted = true`. **If P&L can't be determined cleanly, fail
+safe: treat as breached.** Halts both new entries and top-ups (a top-up
+still spends cash/exposure, even though it skips the concurrency check).
+Log as `"stage": "loss_limit_check"`.
 
-**Candidate priority order — new entries and top-ups compete on equal
-footing (decide this before running any per-candidate check):**
-Merge the **new** and **held** groups from Step 4 — excluding any
-new-group candidates already rejected by the Step 4 capacity short-circuit,
-since those are already logged and done — into a **single combined list**,
-sorted:
+**Candidate priority order — new entries and top-ups compete equally
+(decide before any per-candidate check):**
+Merge **new** and **held** groups from Step 4 (excluding new-group
+candidates already rejected by Step 4's capacity short-circuit) into one
+list, sorted:
 1. **Conviction tier first**: `high` before `medium` before `low`.
-2. **Within the same tier**, break ties by `pct_below_52wk_high` from the
-   thesis record, **descending** (a candidate trading further below its own
-   52-week high is prioritized — this is a disclosed proxy for "room in the
-   setup," not a rigorous fair-value calculation; treat a missing/absent
-   field as the lowest priority within its tier rather than erroring).
-Process **all** of them — new-entry candidates and top-up candidates
-together — strictly in this one merged order. A high-conviction top-up can
-be evaluated, and approved, ahead of a lower-conviction new entry, and vice
-versa: the two compete purely on thesis quality, not on which group they
-started in. Track two running totals as you go through this order, since
-both groups draw from the same account:
-- `cash_remaining`, decremented by every approved candidate regardless of
-  group (new entries and top-ups both spend cash).
+2. **Within a tier**, break ties by `pct_below_52wk_high` **descending**
+   (further below its own 52-week high is prioritized — a disclosed "room
+   in the setup" proxy, not a fair-value calc; missing field = lowest
+   priority in its tier).
+Process all of them — new entries and top-ups together — strictly in this
+merged order; a high-conviction top-up can be approved ahead of a
+lower-conviction new entry and vice versa. Track two running totals:
+- `cash_remaining`, decremented by every approved candidate (both groups
+  spend cash).
 - `concurrent_positions_after`, incremented **only** by approved
-  **new**-group candidates (top-ups never touch this — they don't occupy
-  an additional slot).
-**Log `pct_below_52wk_high` as a real structured field on every single
-risk_check entry produced from this sort — winners and rejections alike —
-not just mentioned in prose for whichever candidates happened to pass.**
-`pending_proposals.jsonl` gets overwritten daily, so `trade_log.jsonl` is
-the only place this number survives for later audit. When a **new**-group
-candidate is rejected purely because slots ran out, log the reason as
+  **new**-group candidates.
+**Log `pct_below_52wk_high` as a structured field on every risk_check
+entry from this sort — winners and rejections alike** (the only place this
+survives, since `pending_proposals.jsonl` is overwritten daily). A
+**new**-group candidate rejected purely for lack of slots: log
 `"concurrent_positions_after (N) exceeds max_concurrent_positions (M) — cap filled by higher-priority candidates this cycle"`
-so it's clear this wasn't a quality rejection, just a scarcity one.
+to show it's scarcity, not quality.
 
 **Per-candidate checks**, for each candidate in the merged priority order:
 
 *If it's a **new**-group candidate:*
-1. Compute proposed position size from the thesis's `conviction`, using
-   this fixed, deterministic table (not runtime judgment):
-   - `high` → `max_position_pct_of_account` (i.e. the full cap, currently 0.20)
+1. Position size from `conviction`, fixed table (not runtime judgment):
+   - `high` → `max_position_pct_of_account` (currently 0.20)
    - `medium` → 0.12
    - `low` → 0.06
-   Dollar amount = that percentage × live `total_value`, rounded to 2 decimals.
-2. If `entries_halted` is true, reject: `"stage": "risk_check", "passed": false, "reason": "loss limit halt — action_on_limit_hit"`. No exception for high conviction.
-3. Check, using the running totals above:
+   Dollar amount = percentage × live `total_value`, rounded to 2 decimals.
+2. If `entries_halted`, reject: `"stage": "risk_check", "passed": false, "reason": "loss limit halt — action_on_limit_hit"`. No high-conviction exception.
+3. Check, using running totals:
    - position size ≤ `max_position_pct_of_account`
-   - `concurrent_positions_after` (running count + 1 for this candidate) ≤ `max_concurrent_positions`
-   - `cash_remaining` after this trade ≥ `min_cash_buffer_pct` × `total_value`
-4. Pass → increment both running totals, log
-   `"stage": "risk_check", "passed": true"` with the computed numbers.
-   Fail → reject, log `"stage": "risk_check", "passed": false"` with the
-   specific reason; running totals unchanged.
+   - `concurrent_positions_after` (running count + 1) ≤ `max_concurrent_positions`
+   - `cash_remaining` after trade ≥ `min_cash_buffer_pct` × `total_value`
+4. Pass → increment both totals, log
+   `"stage": "risk_check", "passed": true"` with computed numbers. Fail →
+   reject, log `"stage": "risk_check", "passed": false"` with the reason;
+   totals unchanged.
 
 *If it's a **held**-group candidate (a possible top-up):*
-1. If `entries_halted` is true, reject the same way as a new entry —
-   `"stage": "risk_check", "passed": false, "position_action": "top_up", "reason": "loss limit halt — action_on_limit_hit"`.
-2. `target_size = ` the same conviction-tier percentage × live
-   `total_value` (`high`→0.20, `medium`→0.12, `low`→0.06) — the position's
-   target size overall, not an amount to add on top of what's already held.
-3. Compute the position's current market value: quantity (from
-   `get_equity_positions`) × fresh price (from `get_equity_quotes`).
-4. `headroom = target_size - current_position_value`. **If `headroom <= 0`**
-   (already at or above its own conviction tier's target), reject —
-   `"stage": "risk_check", "passed": false, "position_action": "top_up", "reason": "already at or above target size for its conviction tier — no top-up"`.
-   A thesis reconfirmed unchanged does **not** by itself justify repeated
-   buying; this check is what prevents that.
-5. **If `headroom > 0`**: the top-up amount is
+1. If `entries_halted`, reject: `"stage": "risk_check", "passed": false, "position_action": "top_up", "reason": "loss limit halt — action_on_limit_hit"`.
+2. `target_size` = same conviction-tier % × live `total_value`
+   (`high`→0.20, `medium`→0.12, `low`→0.06) — the target size overall, not
+   an add-on amount.
+3. Current market value = quantity (`get_equity_positions`) × fresh price
+   (`get_equity_quotes`).
+4. `headroom = target_size - current_position_value`. **If `headroom <= 0`**,
+   reject — `"stage": "risk_check", "passed": false, "position_action": "top_up", "reason": "already at or above target size for its conviction tier — no top-up"`.
+   An unchanged thesis alone doesn't justify repeated buying.
+5. **If `headroom > 0`**: top-up amount =
    `min(headroom, max_position_pct_of_account × total_value − current_position_value)`
-   — that second term is a hard ceiling so a top-up can never push total
-   exposure to this symbol past `max_position_pct_of_account`, no matter
-   the conviction tier. No concurrency check — top-ups never touch
-   `concurrent_positions_after`.
-6. Check `cash_remaining` after this trade ≥ `min_cash_buffer_pct` ×
-   `total_value`, using the running total shared with new entries. Fail →
-   reject and log why; running total unchanged.
+   — the second term is a hard ceiling on total exposure regardless of
+   conviction. No concurrency check.
+6. Check `cash_remaining` after trade ≥ `min_cash_buffer_pct` ×
+   `total_value` (shared running total). Fail → reject and log why; total
+   unchanged.
 7. Pass → decrement `cash_remaining`, log
    `"stage": "risk_check", "passed": true, "position_action": "top_up"`
-   with the computed numbers (current value, target, headroom, buy amount).
+   with current value, target, headroom, buy amount.
 
-Every `risk_check` entry from either branch must include `proposal_date`
-(copied from this candidate's `"date"` in `pending_proposals.jsonl` — used
-by Step 0's idempotency check) and, for `direction: "long"` candidates,
-`pct_below_52wk_high` (copied from the thesis record — used to audit the
-priority sort later). Top-up entries must additionally include
-`"position_action": "top_up"` so they're distinguishable from new entries.
+Every `risk_check` entry must include `proposal_date` (copied from the
+candidate's `"date"` in `pending_proposals.jsonl` — Step 0's idempotency
+key) and, for `direction: "long"`, `pct_below_52wk_high` (for auditing the
+priority sort). Top-up entries must also include
+`"position_action": "top_up"`.
 
-Candidates with `direction: "avoid"` are not processed further (already
-logged as such in Phase A). Candidates with `direction: "exit_existing"`
-for a symbol currently held skip the checks above entirely (selling
-reduces risk, so it isn't blocked by `max_position_pct`, concurrency, cash
-buffer, or the loss-limit halt) and go straight to Step 6 as a sell.
+`direction: "avoid"` candidates aren't processed further (already logged
+in Phase A). `direction: "exit_existing"` candidates for a held symbol
+skip all the checks above (selling reduces risk — not blocked by
+position/concurrency/cash-buffer/loss-limit checks) and go straight to
+Step 6 as a sell.
 
 ## Step 6 — Dry run before anything live (order review and the live-order gate)
 
-For every candidate that passed Step 5 (including stop-loss, take-profit,
-and exit_existing sells, and any approved position top-ups):
+For every candidate that passed Step 5 (stop-loss, take-profit,
+exit_existing sells, and approved top-ups):
 
-1. **Always** call `review_equity_order` first — this is a preview and
-   never places anything by itself.
-2. If `review_equity_order` surfaces any blocking alert, do not proceed to
-   placement regardless of mode; log the alert verbatim and treat as
-   rejected.
-3. Otherwise, branch on `execution.mode` (read fresh in Step 0) and the
-   dry-run cycle count (from Step 0):
+1. **Always** call `review_equity_order` first — a preview, never places
+   anything.
+2. If it surfaces a blocking alert, do not proceed to placement regardless
+   of mode; log the alert verbatim and treat as rejected.
+3. Otherwise, branch on `execution.mode` (fresh from Step 0) and the
+   dry-run cycle count:
 
-   **Live-order gate — ALL of these must be true simultaneously:**
+   **Live-order gate — ALL must be true:**
    - `execution.mode == "live"`
    - dry-run cycle count `>= execution.dry_run_min_cycles_before_live`
-   - `review_equity_order` for this exact order returned no blocking alert
+   - `review_equity_order` for this order returned no blocking alert
 
-   - If the gate is **open**: call `place_equity_order` with the exact
-     parameters just reviewed. Log `"stage": "order", "mode": "live", "placed": true"`
-     plus the fill/confirmation details returned.
-   - If `execution.mode == "dry_run"`: log
+   - **Gate open**: call `place_equity_order` with the reviewed
+     parameters. Log `"stage": "order", "mode": "live", "placed": true"`
+     plus fill/confirmation details.
+   - `execution.mode == "dry_run"`: log
      `"stage": "order", "mode": "dry_run", "would_execute": true"` and stop.
-     **Never call `place_equity_order` in this branch.**
-   - If `execution.mode == "live"` but the cycle count is still under the
-     threshold: do **not** place. Log
+     **Never call `place_equity_order` here.**
+   - `execution.mode == "live"` but cycle count still under threshold: do
+     **not** place. Log
      `"stage": "order", "mode": "live_blocked_insufficient_cycles", "would_execute": true, "placed": false"`
-     with the current vs. required cycle count.
+     with current vs. required count.
 
-Never change `execution.mode` yourself, under any branch. Never invent or
-guess a field value — if a required tool call fails, log the failure for
-that candidate and skip it rather than guessing. Every `order` entry from
-this step must also carry `proposal_date` (same as Step 5), since Step 0's
-idempotency check matches against either a `risk_check` or an `order` entry.
+Never change `execution.mode` yourself. Never invent/guess a field value —
+if a tool call fails, log the failure and skip that candidate. Every
+`order` entry must carry `proposal_date` (same as Step 5) — Step 0's
+idempotency check matches against either a `risk_check` or `order` entry.
 
 ## Step 7 — Logging
 
-Append every decision from this run to `trade_log.jsonl` — one JSON line
-each: `stop_loss`, `take_profit`, `loss_limit_check`, `risk_check` (pass and fail,
-including weekend-gap and price-gap rejections from Step 4, and position
-top-up evaluations from Step 5), and `order` stages, in the same shape
-already used in `trade_log.jsonl` / `trade_log_template.jsonl`. Any entry
-related to a position top-up (rather than a brand-new entry) must include
-`"position_action": "top_up"` so it's distinguishable in the log.
+Append every decision to `trade_log.jsonl` — one JSON line each:
+`stop_loss`, `take_profit`, `loss_limit_check`, `risk_check` (pass/fail,
+including Step 4's weekend-gap/price-gap rejections and Step 5's top-up
+evaluations), and `order` stages, matching the shape already in
+`trade_log.jsonl`/`trade_log_template.jsonl`. Top-up entries must include
+`"position_action": "top_up"`.
 
-**Every single line this step writes — including the final `cycle_summary`
-— must include a `"timestamp"` field**: the actual real-world time this
-run started (e.g. via `TZ='America/Chicago' date +'%H:%M:%S'`), never
-guessed or hallucinated.
-`timestamp` is time-of-day only (`HH:mm:ss`, e.g. `"08:35:01"`) — do not
-prepend or duplicate the date into it. This is purely for human readability
-when scanning the log (e.g. telling apart multiple same-day runs) — it is a
-separate field from `"date"` and `"proposal_date"`, and must **never** be
-used for idempotency, the dry-run cycle count, or any other logic. Those
-two fields (`date` and `proposal_date`) remain the only ones anything
-mechanical keys off.
+**Every line — including the final `cycle_summary` — needs a real
+`"timestamp"`** (`HH:mm:ss`, e.g. via `TZ='America/Chicago' date +'%H:%M:%S'`
+— never guessed), no date prefix. Separate from `"date"`/`"proposal_date"`
+— for readability only, never used for idempotency, dry-run count, or
+other logic; only `date` and `proposal_date` are mechanical.
 
 **Always append exactly one final line per run**, even if nothing else
 happened:
 ```json
 {"date": "YYYY-MM-DD", "timestamp": "HH:mm:ss", "stage": "cycle_summary", "mode": "dry_run|live", "candidates_considered": N, "orders_reviewed": N, "orders_placed": N}
 ```
-This line is load-bearing — Step 0's dry-run cycle count depends on it
-existing every run, keyed off its `"date"` field (distinct dates, per the
-counting rule above), not its `"timestamp"`.
+Load-bearing — Step 0's dry-run cycle count depends on this line existing
+every run, keyed off `"date"` (distinct dates), not `"timestamp"`.
 
 ## Hard rules
 
-- Never change `execution.mode` or any value in `risk_rules.json`.
-- Never call `place_equity_order` unless the full live-order gate in Step 6
-  is open at the moment of the call.
+- Never change `execution.mode` or any `risk_rules.json` value.
+- Never call `place_equity_order` unless Step 6's live-order gate is open
+  at that moment.
 - A "high conviction" thesis never overrides a failed mechanical check.
 - If required data can't be retrieved (portfolio, positions, P&L history),
-  fail safe — treat the relevant check as failed / halt new entries — and
-  log exactly what failed, rather than guessing or filling in a placeholder.
+  fail safe — treat the check as failed/halt new entries — and log exactly
+  what failed.
