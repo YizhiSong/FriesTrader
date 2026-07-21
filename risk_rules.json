@@ -29,6 +29,7 @@
   },
 
   "universe": {
+    "watchlist_name": "Wishlist",
     "max_candidates_per_cycle": 20,
     "min_avg_daily_volume": 1000000,
     "min_market_cap_usd": 2000000000,

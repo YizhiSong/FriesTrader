@@ -13,11 +13,13 @@ not attempt them regardless.
 
 ## Step 1 — Build the watchlist
 
-Pull the user's Robinhood watchlists
-(`get_watchlists`, `get_watchlist_items`), combine and dedupe symbols,
-filter via `get_equity_fundamentals` against the **current** values in
-`risk_rules.json`'s `universe` block (read that file fresh each run — do
-not assume prior values), and cap at `universe.max_candidates_per_cycle`.
+Pull symbols from the Robinhood watchlist named `universe.watchlist_name`
+in `risk_rules.json` (read fresh each run — do not assume prior values or
+hardcode the name). Call `get_watchlists` to find its `list_id` by
+matching `display_name`, then `get_watchlist_items` on that `list_id` —
+ignore all other watchlists. Dedupe, filter via `get_equity_fundamentals`
+against the **current** values in `risk_rules.json`'s `universe` block,
+and cap at `universe.max_candidates_per_cycle`.
 
 **Always add every currently-held position** on top of the watchlist-derived
 list: call `get_equity_positions` (account_number from `risk_rules.json`)
