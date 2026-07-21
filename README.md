@@ -37,7 +37,9 @@ persistent state, not local disk.
   loss, loss limits, universe filters, execution mode). Nothing in this
   system should be able to override these. **Fill in your own
   `account_number` before using this** — the placeholder here is not a
-  real account.
+  real account. **Also set `universe.watchlist_name`** to the name of a
+  watchlist you actually have in your brokerage account — Phase A pulls
+  candidates from that list by name, not a hardcoded one.
 - `PHASE_A_TASK.md` / `PHASE_B_TASK.md` — the full, self-contained spec
   each phase follows.
 - `trade_log_template.jsonl` — the log line shapes; real logs should
@@ -64,8 +66,10 @@ persistent state, not local disk.
 ## First-time setup
 
 1. Fill in `account_number` in `risk_rules.json` with your own brokerage
-   account number, and review every other threshold — the defaults here
-   are illustrative, not a recommendation.
+   account number, set `universe.watchlist_name` to a watchlist you've
+   already created and populated in your brokerage account, and review
+   every other threshold — the defaults here are illustrative, not a
+   recommendation.
 2. Keep `execution.mode` set to `"dry_run"`. Leave it there for at least
    the number of cycles set in `dry_run_min_cycles_before_live` — don't
    shortcut this.
