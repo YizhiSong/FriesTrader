@@ -19,6 +19,12 @@ ignore all other watchlists. Dedupe, filter via `get_equity_fundamentals`
 against `risk_rules.json`'s current `universe` block, and cap at
 `universe.max_candidates_per_cycle`.
 
+`exclude`'s `"penny_stocks"` entry is a **mechanical price check, not a
+judgment call**: exclude a candidate if its current price <
+`universe.penny_stock_price_threshold_usd`, full stop — same cutoff every
+run, regardless of how the stock is otherwise trading. Log the reason as
+`"penny stock (price $<X>, under $<threshold>) — excluded per universe.exclude: penny_stocks"`.
+
 **Always add every held position** on top of the watchlist-derived list
 (`get_equity_positions`, account_number from `risk_rules.json`),
 regardless of filters or watchlist membership — a held position must

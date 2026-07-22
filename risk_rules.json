@@ -33,6 +33,7 @@
     "max_candidates_per_cycle": 20,
     "min_avg_daily_volume": 1000000,
     "min_market_cap_usd": 2000000000,
+    "penny_stock_price_threshold_usd": 5.00,
     "exclude": ["penny_stocks", "leveraged_etfs", "inverse_etfs"]
   },
 
