@@ -40,10 +40,15 @@ Phase B's job. See Hard stop below.)
 
 ## Step 2 — Gather signals
 
-Pull ~60 days of price history per candidate (`get_equity_historicals`).
-Whether it's worth a news search is mechanical, against
-`risk_rules.json`'s `signal_thresholds` — qualifies if it meets **any
-one** of these three (no extra tool calls needed):
+Pull ~60 days of price history per candidate (`get_equity_historicals`),
+called fresh for every candidate this run. Never reuse `close_60d_ago`,
+`latest_close`, or any other historicals-derived value from a prior
+run's `pending_proposals.jsonl` or `trade_log.jsonl`, even if today's
+figure looks unchanged from yesterday's — every number in `signal_check`
+must come from this run's own tool call. Whether it's worth a news
+search is mechanical, against `risk_rules.json`'s `signal_thresholds` —
+qualifies if it meets **any one** of these three (no extra tool calls
+needed):
 
 1. **60-day price move**: `abs(latest_close - close_60d_ago) / close_60d_ago >= signal_thresholds.price_move_60d_pct`.
    **"60 days" = 60 *calendar* days, not trading bars.** Get
