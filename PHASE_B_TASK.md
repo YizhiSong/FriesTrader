@@ -104,14 +104,29 @@ thesis review, never blocked by a loss-limit halt (it's an exit). Log
 `"stage": "stop_loss"`; if triggered, treat as a Step 6 sell candidate. A
 good thesis never cancels a stop-loss — see `risk_rules.json`'s note.
 
-**Take-profit check (always runs, independent of new candidates):**
-Using the same pull as the stop-loss check (no need to call again),
-compute each position's gain from average cost. If it meets or exceeds
-`take_profit.target_pct`, immediate full-position sell — no thesis review,
-never blocked by a loss-limit halt. Log `"stage": "take_profit"`; if
-triggered, treat as a Step 6 sell candidate. A good thesis never cancels a
-take-profit either — this account is short-term, not buy-and-hold — see
-`risk_rules.json`'s note.
+**Take-profit check (always runs, independent of new candidates, tiered
+partial sells)**: Using the same pull as the stop-loss check (no need to
+call again), compute each position's gain from average cost. For each
+`take_profit.tiers` entry, in ascending `gain_pct` order: check
+`trade_log.jsonl` for a `"stage": "take_profit"` entry for this symbol at
+that exact `gain_pct` tier, logged since the position's quantity last
+reached zero (a full exit) — if found, this tier already fired, skip it.
+Otherwise, if today's gain meets or exceeds that tier's `gain_pct`, fire
+it: sell `sell_fraction_of_position` of the position's **quantity as it
+stands at this moment** (i.e. after any earlier tier that already fired
+this same cycle has reduced it). No thesis review, never blocked by a
+loss-limit halt (it's an exit, not a new entry). Log
+`"stage": "take_profit", "tier_gain_pct": <the tier fired>, "sell_fraction": <fraction>, "quantity_before": <N>, "quantity_sold": <N>, "triggered": true, "action": "sell_partial_position"`
+and treat it as its own Step 6 sell candidate. **If a single cycle's gain
+has jumped past more than one not-yet-fired tier at once, fire all of
+them in ascending order within that cycle** — don't skip a lower tier
+just because a higher one was also reached. If no tier fires this cycle,
+log one line noting each tier's fired/not-fired status,
+`"triggered": false, "action": "hold_monitor"`. Once all three tiers have
+fired, the remaining quantity is held long indefinitely — only the
+stop-loss check above still applies to it. Tiers become eligible again
+only after the position is fully closed to zero shares and a new entry
+is later opened (a genuinely new holding period, not a top-up).
 
 **Stop-loss re-entry lock — price-gated, not time-gated**: check
 `trade_log.jsonl` for this symbol's most recent `"stage": "order"` entry

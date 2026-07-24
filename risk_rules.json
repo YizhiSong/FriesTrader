@@ -17,9 +17,13 @@
   },
 
   "take_profit": {
-    "target_pct": 0.15,
+    "tiers": [
+      {"gain_pct": 0.15, "sell_fraction_of_position": 0.25},
+      {"gain_pct": 0.30, "sell_fraction_of_position": 0.25},
+      {"gain_pct": 0.50, "sell_fraction_of_position": 0.25}
+    ],
     "enforced_mechanically": true,
-    "note": "Every open position must have this checked on every cycle, independent of any new thesis about the stock — this account is short-term oriented, not buy-and-hold. A good new narrative does not cancel a take-profit any more than it cancels a stop-loss."
+    "note": "Tiered partial take-profit, not a single full-exit threshold. Every open position must have this checked on every cycle, independent of any new thesis about the stock — this account is short-term oriented, not buy-and-hold. A good new narrative does not cancel a take-profit tier any more than it cancels a stop-loss. Each tier fires once (per holding period, i.e. since the position last closed to zero) when gain first reaches it, selling sell_fraction_of_position of the position's quantity at that moment — see PHASE_B_TASK.md Step 5 for the exact mechanics. After all three tiers have fired, the remaining quantity is held long indefinitely; only the stop-loss still applies to it."
   },
 
   "loss_limits": {

@@ -4,4 +4,4 @@
 {"date": "2026-07-09", "symbol": "EXAMPLE", "stage": "risk_check", "proposed_position_pct": 0.35, "passed": false, "reason": "exceeds max_position_pct_of_account (0.20)"}
 {"date": "2026-07-09", "symbol": "EXAMPLE", "stage": "order", "mode": "dry_run", "action": "buy", "shares": 12, "price": 84.20, "would_execute": true}
 {"date": "2026-07-09", "symbol": "OTHER", "stage": "stop_loss", "entry_price": 100.00, "current_price": 92.50, "stop_pct": 0.07, "triggered": true, "action": "sell_full_position"}
-{"date": "2026-07-09", "symbol": "ANOTHER", "stage": "take_profit", "entry_price": 100.00, "current_price": 115.50, "target_pct": 0.15, "triggered": true, "action": "sell_full_position"}
+{"date": "2026-07-09", "symbol": "ANOTHER", "stage": "take_profit", "entry_price": 100.00, "current_price": 115.50, "gain_pct": 0.155, "tier_gain_pct": 0.15, "sell_fraction": 0.25, "quantity_before": 40, "quantity_sold": 10, "triggered": true, "action": "sell_partial_position"}
