@@ -99,6 +99,16 @@ disclosed "room in the setup" proxy, not a rigorous fair-value
 calculation. Omit for `avoid`/`exit_existing` candidates; it isn't used
 for those.
 
+**Include a `sources` field** listing outlet name + URL for every search
+result that informed this thesis (e.g.
+`["Reuters: https://...", "Company Q2 press release: https://..."]`) —
+this is what makes the reasoning step auditable later instead of just
+trusted. Prefer primary sources (company filings/press releases, wire
+services like Reuters/AP) and major outlets (Bloomberg, WSJ, CNBC, etc.)
+over aggregator/content-farm sites when both turn up in the same search;
+if only a lower-tier source is available, use it and cite it rather than
+omitting the field.
+
 ## Output
 
 **Overwrite `pending_proposals.jsonl` at the start of this run** (replace,

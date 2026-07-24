@@ -78,10 +78,12 @@ hours. **If today is Monday**:
 1. Before the price-staleness check, run **one additional targeted search
    per pending proposal** covering Saturday/Sunday (earnings, M&A,
    guidance, macro) — separate from and not counted against
-   `cadence.news_search_budget_per_cycle`.
+   `cadence.news_search_budget_per_cycle`. Same sourcing rules as Phase
+   A's thesis `sources` field (prefer primary/major-outlet sources; cite
+   whatever you used).
 2. If anything materially contradicts the thesis/invalidation criteria,
    drop it — log
-   `"stage": "risk_check", "passed": false, "proposal_date": "<candidate's date from pending_proposals.jsonl>", "reason": "weekend news invalidated thesis: <what you found>"`
+   `"stage": "risk_check", "passed": false, "proposal_date": "<candidate's date from pending_proposals.jsonl>", "reason": "weekend news invalidated thesis: <what you found>", "sources": ["Outlet Name: https://..."]`
    — don't process further.
 3. If nothing turns up, proceed to the price-based check.
 
@@ -91,8 +93,10 @@ Other weekdays: skip straight to the price-based check.
 
 Pull a fresh quote (`get_equity_quotes`) — re-verify against this
 morning's open, not Phase A's prior-close price. If the price gapped
-significantly, re-check against the thesis's `invalidation` criteria; if
-the gap plausibly invalidates it, drop it as above.
+significantly, re-check against the thesis's `invalidation` criteria —
+same sourcing rules as above, cite whatever explains the gap in a
+`"sources"` field on the resulting log line; if the gap plausibly
+invalidates it, drop it as above.
 
 ## Step 5 — Mechanical risk enforcement
 

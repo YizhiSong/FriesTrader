@@ -54,7 +54,8 @@ persistent state, not local disk.
   "thesis": "1-3 sentences on what changed and why it might matter",
   "conviction": "low | medium | high",
   "invalidation": "what would prove this thesis wrong",
-  "direction": "long | avoid | exit_existing"
+  "direction": "long | avoid | exit_existing",
+  "sources": ["Outlet Name: https://...", "..."]
 }
 ```
 
