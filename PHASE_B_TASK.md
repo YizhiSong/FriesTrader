@@ -128,29 +128,44 @@ stop-loss check above still applies to it. Tiers become eligible again
 only after the position is fully closed to zero shares and a new entry
 is later opened (a genuinely new holding period, not a top-up).
 
-**Stop-loss re-entry lock — price-gated, not time-gated**: check
-`trade_log.jsonl` for this symbol's most recent `"stage": "order"` entry
-with `"reason": "stop_loss"` (a stop-out sell). This lock only applies if
-that sell actually executed — confirm via `get_equity_positions` that the
-symbol is genuinely not held (or was fully closed and re-opened since).
-A `dry_run` stop-loss entry never actually closed the position, so if
-`get_equity_positions` still shows the same open position, there was no
-real exit and nothing to re-enter — the lock does not apply, and the
-symbol should be evaluated as a normal held position (e.g. a top-up),
-not dropped. When the sell did actually execute and no later `order`
-entry for that symbol shows it was bought since, the symbol is locked
-out of any new buy (new entry or top-up) — including later in this same
-cycle — until a fresh quote is **at or below** the price it was sold at
-(that entry's `quote_bid`), no matter how many cycles or days have
-passed, and regardless of thesis quality or conviction. This exists
-specifically to prevent selling at a loss and then buying back at a
-higher price. Before ranking, pull a fresh quote for any candidate with
-an unresolved (actually-executed) stop-loss lock and drop it from the
-merged priority order below if the fresh price is above that stop-out
+**No same-cycle sell-then-buy**: if a symbol's stop-loss fired or any
+take-profit tier fired earlier in this same cycle, it is not eligible
+for a top-up this same cycle, regardless of thesis or conviction — drop
+it from the **held** group before the merged priority order below,
+logging
+`"stage": "risk_check", "passed": false, "position_action": "top_up", "reason": "stop-loss/take-profit fired this cycle — not eligible for a same-cycle top-up"`.
+This applies unconditionally (dry_run or live) since it's about not
+producing a self-contradictory sell-and-buy decision within one cycle,
+not about whether the sell actually executed. It's a normal top-up
+candidate again starting next cycle (subject to the sell re-entry lock
+below).
+
+**Sell re-entry lock — price-gated, not time-gated, any sell type**:
+check `trade_log.jsonl` for this symbol's most recent `"stage": "order"`
+entry whose `reason` is any sell (`stop_loss`, `take_profit`, or
+`exit_existing`). This lock only applies if that sell actually
+executed — confirm via `get_equity_positions` that its quantity is
+genuinely lower than it was immediately before that logged sell (or the
+position was fully closed and re-opened since). A `dry_run` sell entry
+never actually reduces the position, so if `get_equity_positions` still
+shows the same (or higher) quantity as before that logged sell, there
+was no real reduction from it and the lock does not apply — the symbol
+should be evaluated normally (e.g. a top-up), not dropped. When the sell
+did actually execute and no later `order` entry for that symbol shows a
+buy since, the symbol is locked out of any new buy (new entry or
+top-up) — including later in this same cycle — until a fresh quote is
+**at or below** the price it was sold at (that entry's `quote_bid`), no
+matter how many cycles or days have passed, and regardless of thesis
+quality or conviction. This exists to prevent buying back into a symbol
+at a worse price than you just sold it at, whatever the reason for that
+sell — averaging up right after trimming or exiting undermines the
+whole point of it. Before ranking, pull a fresh quote for any candidate
+with an unresolved (actually-executed) sell lock and drop it from the
+merged priority order below if the fresh price is above that sell
 price — log it as its own line rather than silently omitting it:
-`"stage": "risk_check", "passed": false, "proposal_date": "<candidate's date from pending_proposals.jsonl>", "reason": "stop-loss re-entry lock — current price <X> is above the <Y> it was stopped out at on <date>"`.
-Once the fresh price is at or below the stop-out price, the lock clears
-and it's eligible again as a normal candidate through Phase A's usual
+`"stage": "risk_check", "passed": false, "proposal_date": "<candidate's date from pending_proposals.jsonl>", "reason": "sell re-entry lock — current price <X> is above the <Y> it was sold at on <date> (reason: <stop_loss|take_profit|exit_existing>)"`.
+Once the fresh price is at or below that sell price, the lock clears and
+it's eligible again as a normal candidate through Phase A's usual
 screening — no separate time-based cooldown on top of this.
 
 **Loss-limit halt check (always runs, gates all new entries and top-ups):**
