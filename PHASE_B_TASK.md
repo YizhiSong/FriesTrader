@@ -275,8 +275,22 @@ exit_existing sells, and approved top-ups):
    - `review_equity_order` for this order returned no blocking alert
 
    - **Gate open**: call `place_equity_order` with the reviewed
-     parameters. Log `"stage": "order", "mode": "live", "placed": true"`
-     plus fill/confirmation details.
+     parameters. Then confirm the real fill before logging — the
+     `place_equity_order` response alone is not enough (it typically
+     returns `order_state: "unconfirmed"`, not the actual outcome):
+     1. Call `get_equity_orders` with this `order_id`.
+     2. If `state` is terminal (`filled`, `partially_filled`,
+        `cancelled`, `rejected`, `failed`, `voided`), use it.
+     3. Otherwise wait ~15 seconds and check once more; use whatever
+        `state` comes back, terminal or not — never poll more than
+        twice or block the cycle waiting for a fill.
+     Log `"stage": "order", "mode": "live", "placed": true, "order_id":
+     "<id>", "order_state": "<confirmed state from get_equity_orders>",
+     "fill_price": <average_price if filled/partially_filled, else
+     null>, "fill_quantity": <cumulative_quantity if filled/partially_filled,
+     else null>` in addition to the pre-trade `quote_ask`/`quantity`
+     estimate already logged (not in place of it) — the log should show
+     both the estimate and the confirmed real outcome.
    - `execution.mode == "dry_run"`: log
      `"stage": "order", "mode": "dry_run", "would_execute": true"` and stop.
      **Never call `place_equity_order` here.**
