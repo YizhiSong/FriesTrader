@@ -188,10 +188,14 @@ Merge **new** and **held** groups from Step 4 (excluding new-group
 candidates already rejected by Step 4's capacity short-circuit) into one
 list, sorted:
 1. **Conviction tier first**: `high` before `medium` before `low`.
-2. **Within a tier**, break ties by `pct_below_52wk_high` **descending**
-   (further below its own 52-week high is prioritized — a disclosed "room
-   in the setup" proxy, not a fair-value calc; missing field = lowest
-   priority in its tier).
+2. **Within a tier**, break ties by `risk_flags` count **ascending**
+   (fewer disclosed risk flags — active litigation, dilution, insolvency
+   concern, leadership turnover — is prioritized; missing field = treated
+   as worst case, sorted last).
+3. **Still tied**, break by `pct_below_52wk_high` **descending** (further
+   below its own 52-week high is prioritized — a disclosed "room in the
+   setup" proxy, not a fair-value calc; missing field = lowest priority
+   in its tier).
 Process all of them — new entries and top-ups together — strictly in this
 merged order; a high-conviction top-up can be approved ahead of a
 lower-conviction new entry and vice versa. Track two running totals:
@@ -199,9 +203,10 @@ lower-conviction new entry and vice versa. Track two running totals:
   spend cash).
 - `concurrent_positions_after`, incremented **only** by approved
   **new**-group candidates.
-**Log `pct_below_52wk_high` as a structured field on every risk_check
-entry from this sort — winners and rejections alike** (the only place this
-survives, since `pending_proposals.jsonl` is overwritten daily). A
+**Log `risk_flags` and `pct_below_52wk_high` as structured fields on
+every risk_check entry from this sort — winners and rejections alike**
+(the only place this survives, since `pending_proposals.jsonl` is
+overwritten daily). A
 **new**-group candidate rejected purely for lack of slots: log
 `"concurrent_positions_after (N) exceeds max_concurrent_positions (M) — cap filled by higher-priority candidates this cycle"`
 to show it's scarcity, not quality.
@@ -250,8 +255,8 @@ to show it's scarcity, not quality.
 
 Every `risk_check` entry must include `proposal_date` (copied from the
 candidate's `"date"` in `pending_proposals.jsonl` — Step 0's idempotency
-key) and, for `direction: "long"`, `pct_below_52wk_high` (for auditing the
-priority sort). Top-up entries must also include
+key) and, for `direction: "long"`, `risk_flags` and `pct_below_52wk_high`
+(for auditing the priority sort). Top-up entries must also include
 `"position_action": "top_up"`.
 
 `direction: "avoid"` candidates aren't processed further (already logged

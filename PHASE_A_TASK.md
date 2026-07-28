@@ -96,14 +96,30 @@ For each flagged candidate, produce the thesis record from `README.md`
 or `"exit_existing"` (no longer does) — never `"avoid"` (that's only for
 not-yet-held candidates).
 
+**Include `risk_flags`** for every `direction: "long"` candidate — an
+array of zero or more tags from this fixed set, based only on what this
+run's sourced research already found (no extra searches):
+- `"active_litigation"` — company or an executive named in an active
+  lawsuit/regulatory investigation (e.g. securities-fraud class action,
+  SEC/DOJ probe).
+- `"dilution_risk"` — a completed or pending equity/convertible raise,
+  share offering, or ATM program disclosed in the last ~90 days.
+- `"insolvency_or_liquidity_concern"` — bankruptcy rumor, going-concern
+  language, or reliance on an external backer to remain solvent.
+- `"leadership_turnover"` — a C-suite departure/replacement in the last
+  ~90 days tied to operational or execution problems (not routine
+  succession).
+Empty array (`[]`) if none apply. Used by Phase B (Step 5) as the
+primary within-tier tie-break, ahead of `pct_below_52wk_high`.
+
 **Include `pct_below_52wk_high`** for every `direction: "long"` candidate:
 `(high_52_weeks - current_price) / high_52_weeks` (e.g. `0.15`).
 `high_52_weeks` from Step 1's `get_equity_fundamentals` call,
 `current_price` from Step 1's `get_equity_quotes` call. Used by
-Phase B (Step 5) to break ties between same-conviction candidates — a
-disclosed "room in the setup" proxy, not a rigorous fair-value
-calculation. Omit for `avoid`/`exit_existing` candidates; it isn't used
-for those.
+Phase B (Step 5) as the secondary within-tier tie-break, after
+`risk_flags` — a disclosed "room in the setup" proxy, not a rigorous
+fair-value calculation. Omit for `avoid`/`exit_existing` candidates; it
+isn't used for those.
 
 **Include a `sources` field** listing outlet name + URL for every search
 result that informed this thesis (e.g.
