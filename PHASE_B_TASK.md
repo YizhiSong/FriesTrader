@@ -219,7 +219,7 @@ to show it's scarcity, not quality.
    - `medium` → 0.12
    - `low` → 0.06
    Dollar amount = percentage × live `total_value`, rounded to 2 decimals.
-2. If `entries_halted`, reject: `"stage": "risk_check", "passed": false, "reason": "loss limit halt — action_on_limit_hit"`. No high-conviction exception.
+2. If `entries_halted`, reject: `"stage": "risk_check", "passed": false, "reason": "loss limit halt — daily/weekly drawdown breached"`. No high-conviction exception.
 3. Check, using running totals:
    - position size ≤ `max_position_pct_of_account`
    - `concurrent_positions_after` (running count + 1) ≤ `max_concurrent_positions`
@@ -230,7 +230,7 @@ to show it's scarcity, not quality.
    totals unchanged.
 
 *If it's a **held**-group candidate (a possible top-up):*
-1. If `entries_halted`, reject: `"stage": "risk_check", "passed": false, "position_action": "top_up", "reason": "loss limit halt — action_on_limit_hit"`.
+1. If `entries_halted`, reject: `"stage": "risk_check", "passed": false, "position_action": "top_up", "reason": "loss limit halt — daily/weekly drawdown breached"`.
 2. `target_size` = same conviction-tier % × live `total_value`
    (`high`→0.20, `medium`→0.12, `low`→0.06) — the target size overall, not
    an add-on amount.
