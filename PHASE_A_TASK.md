@@ -19,6 +19,10 @@ ignore all other watchlists. Dedupe, filter via `get_equity_fundamentals`
 against `risk_rules.json`'s current `universe` block, and cap at
 `universe.max_candidates_per_cycle`.
 
+Pull current prices for the capped candidate list via `get_equity_quotes`
+(batched into one call), fresh every run. Use `last_trade_price` as
+`current_price` in Steps 2–3.
+
 `exclude`'s `"penny_stocks"` entry is a **mechanical price check, not a
 judgment call**: exclude a candidate if its current price <
 `universe.penny_stock_price_threshold_usd`, full stop — same cutoff every
@@ -62,7 +66,8 @@ needed):
    (both from Step 1's `get_equity_fundamentals` call).
 3. **Near a 52-week extreme**: `(high_52_weeks - current_price) / high_52_weeks <= signal_thresholds.pct_from_52wk_extreme`
    **or** `(current_price - low_52_weeks) / low_52_weeks <= signal_thresholds.pct_from_52wk_extreme`
-   (also from Step 1's fundamentals call).
+   (`high_52_weeks`/`low_52_weeks` from Step 1's `get_equity_fundamentals`
+   call, `current_price` from Step 1's `get_equity_quotes` call).
 
 **Log the raw inputs behind every ratio, not just the ratio** (see
 `signal_check` format below) — otherwise it can't be sanity-checked
@@ -92,8 +97,9 @@ or `"exit_existing"` (no longer does) — never `"avoid"` (that's only for
 not-yet-held candidates).
 
 **Include `pct_below_52wk_high`** for every `direction: "long"` candidate:
-`(high_52_weeks - current_price) / high_52_weeks` (e.g. `0.15`). Both
-values already come from Step 1's `get_equity_fundamentals` call. Used by
+`(high_52_weeks - current_price) / high_52_weeks` (e.g. `0.15`).
+`high_52_weeks` from Step 1's `get_equity_fundamentals` call,
+`current_price` from Step 1's `get_equity_quotes` call. Used by
 Phase B (Step 5) to break ties between same-conviction candidates — a
 disclosed "room in the setup" proxy, not a rigorous fair-value
 calculation. Omit for `avoid`/`exit_existing` candidates; it isn't used
