@@ -238,10 +238,13 @@ to show it's scarcity, not quality.
    `min(headroom, max_position_pct_of_account × total_value − current_position_value)`
    — the second term is a hard ceiling on total exposure regardless of
    conviction. No concurrency check.
-6. Check `cash_remaining` after trade ≥ `min_cash_buffer_pct` ×
+6. **If the resulting buy amount < $1.00** (Robinhood's dollar-based order
+   minimum), reject without calling `review_equity_order` — log
+   `"stage": "risk_check", "passed": false, "position_action": "top_up", "reason": "top-up amount $<X> is below the $1.00 broker minimum — no order attempted"`.
+7. Check `cash_remaining` after trade ≥ `min_cash_buffer_pct` ×
    `total_value` (shared running total). Fail → reject and log why; total
    unchanged.
-7. Pass → decrement `cash_remaining`, log
+8. Pass → decrement `cash_remaining`, log
    `"stage": "risk_check", "passed": true, "position_action": "top_up"`
    with current value, target, headroom, buy amount.
 

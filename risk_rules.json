@@ -6,7 +6,7 @@
 
   "position_sizing": {
     "max_position_pct_of_account": 0.20,
-    "max_concurrent_positions": 3,
+    "max_concurrent_positions": 4,
     "min_cash_buffer_pct": 0.10
   },
 
