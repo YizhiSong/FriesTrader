@@ -48,7 +48,6 @@
   },
 
   "cadence": {
-    "screening_frequency": "once_daily_after_close",
     "news_search_budget_per_cycle": 20
   },
 
