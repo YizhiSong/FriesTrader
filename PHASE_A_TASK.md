@@ -29,6 +29,16 @@ judgment call**: exclude a candidate if its current price <
 run, regardless of how the stock is otherwise trading. Log the reason as
 `"penny stock (price $<X>, under $<threshold>) — excluded per universe.exclude: penny_stocks"`.
 
+`exclude`'s `"leveraged_etfs"`/`"inverse_etfs"` entries are also
+**mechanical, not a judgment call**: exclude a candidate if Step 1's
+`get_equity_fundamentals` `description` field contains the word
+"leveraged" or "inverse" (case-insensitive substring match), full stop —
+fund providers state this directly (e.g. TQQQ's description reads
+"provides 3x leveraged exposure...", SQQQ's reads "provides (-3x) inverse
+exposure..."), so no separate judgment about whether the leverage is
+currently risky. Log the reason as
+`"leveraged/inverse ETF (description: \"<matched phrase>\") — excluded per universe.exclude: <leveraged_etfs|inverse_etfs>"`.
+
 **Always add every held position** on top of the watchlist-derived list
 (`get_equity_positions`, account_number from `risk_rules.json`),
 regardless of filters or watchlist membership — a held position must
