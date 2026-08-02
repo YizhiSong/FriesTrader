@@ -172,6 +172,46 @@ Once the fresh price is at or below that sell price, the lock clears and
 it's eligible again as a normal candidate through Phase A's usual
 screening — no separate time-based cooldown on top of this.
 
+**Wash-sale guard (buys only) — cross-account, calendar-gated, separate
+from the price-gated lock above:** if `risk_rules.json`'s
+`wash_sale_avoidance.enabled` is `false`, skip this guard entirely and
+proceed as if it doesn't exist. If `true`: before approving any
+**new**-group or **held**-group (top-up) candidate, check every account
+number in `wash_sale_avoidance.linked_accounts` (not just this account)
+for a closing sale of that symbol realizing a loss within the last
+`lookback_window_days` days — call `get_pnl_trade_history` per linked
+account, filtered to the symbol, and look for any closing trade with a
+negative realized gain dated inside the window. This is independent of
+and in addition to the sell re-entry lock above: that lock is
+price-gated and scoped to this account only; this guard is
+calendar-gated and spans every linked account, because the IRS
+wash-sale rule applies per taxpayer across all accounts a person
+controls, not per account and not per price. If a matching loss sale
+turns up in **any** linked account, drop the candidate before ranking —
+log
+`"stage": "risk_check", "passed": false, "reason": "wash sale guard -- <symbol> was sold at a loss in account <account_number> on <date>, within the <lookback_window_days>-day wash-sale window"`
+(add `"position_action": "top_up"` if it's a top-up candidate). This
+guard never applies to stop_loss/take_profit/exit_existing sells —
+selling is never gated by tax considerations, only buying is (see the
+flag-only check just below for the sell side).
+
+**Wash-sale flag on sells (informational only, never blocks a sell):**
+whenever the stop-loss check triggers, a take-profit tier fires, or an
+`exit_existing` sell is processed, and that specific sale realizes a
+loss (a stop-loss sell is always a loss by definition; check
+take-profit/`exit_existing` case by case against the fill), check the
+same `wash_sale_avoidance.linked_accounts` for a purchase of that symbol
+within `lookback_window_days` days before today. If found, add
+`"wash_sale_flag": true, "wash_sale_note": "possible wash sale -- <symbol> was bought in account <account_number> on <date>, within <lookback_window_days> days of this sale -- this loss may be disallowed (or, if <account_number> is an IRA, permanently disallowed) for tax purposes"`
+to that sell's `order` log entry. Purely informational for the human's
+own tax reconciliation — it never blocks, delays, or resizes the sell
+itself, and it does not require `wash_sale_avoidance.enabled` to be
+`true` (the flag is a record of what happened, not a guard against
+future action, so it stays on even if the buy-side guard is toggled
+off). Note the asymmetry this can't fix: a sell logged clean today can
+still become a wash sale later if a linked account buys the same symbol
+afterward — that's outside this pipeline's visibility and control.
+
 **Loss-limit halt check (always runs, gates all new entries and top-ups):**
 Determine today's and this week's account P&L as % of account value
 (`get_pnl_trade_history`/`get_realized_pnl` and `get_portfolio`, vs
@@ -344,3 +384,6 @@ every run, keyed off `"date"` (distinct dates), not `"timestamp"`.
 - If required data can't be retrieved (portfolio, positions, P&L history),
   fail safe — treat the check as failed/halt new entries — and log exactly
   what failed.
+- The wash-sale guard (Step 5) only ever blocks a buy. It must never
+  block, delay, or resize a stop_loss/take_profit/exit_existing sell —
+  a tax outcome never overrides risk management.

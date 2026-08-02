@@ -29,6 +29,13 @@
     "weekly_loss_limit_pct_of_account": 0.10
   },
 
+  "wash_sale_avoidance": {
+    "enabled": true,
+    "note": "Toggle only -- set enabled to false to turn this guard off entirely; no other change needed. IRS wash-sale rule applies per taxpayer across ALL accounts, not per account, so this checks linked_accounts, not just account_number. Blocks BUYS only (new entries and top-ups) -- never blocks a stop_loss/take_profit/exit_existing sell, since risk management must never bend to a tax outcome; those sells are instead logged with a wash-sale flag if one applies, for the human's own tax tracking. This cannot prevent a wash sale caused by a purchase made LATER in another linked account after an agentic-account sell -- those accounts are outside this pipeline's control; only the human can avoid that side.",
+    "lookback_window_days": 30,
+    "linked_accounts": ["YOUR_ACCOUNT_NUMBER_HERE", "YOUR_OTHER_ACCOUNT_NUMBER_HERE"]
+  },
+
   "universe": {
     "watchlist_name": "Wishlist",
     "max_candidates_per_cycle": 20,

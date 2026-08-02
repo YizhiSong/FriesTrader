@@ -39,7 +39,14 @@ persistent state, not local disk.
   `account_number` before using this** — the placeholder here is not a
   real account. **Also set `universe.watchlist_name`** to the name of a
   watchlist you actually have in your brokerage account — Phase A pulls
-  candidates from that list by name, not a hardcoded one.
+  candidates from that list by name, not a hardcoded one. **Also fill in
+  `wash_sale_avoidance.linked_accounts`** with every brokerage account
+  number you personally control that might hold the same symbols (a
+  separate personal account, an IRA, etc.) — the IRS wash-sale rule
+  applies per taxpayer across all your accounts, not just this one, and
+  this list is how the guard checks the others. Set
+  `wash_sale_avoidance.enabled` to `false` if you'd rather not have buys
+  blocked by this check at all.
 - `PHASE_A_TASK.md` / `PHASE_B_TASK.md` — the full, self-contained spec
   each phase follows.
 - `trade_log_template.jsonl` — the log line shapes; real logs should
@@ -71,14 +78,19 @@ persistent state, not local disk.
    already created and populated in your brokerage account, and review
    every other threshold — the defaults here are illustrative, not a
    recommendation.
-2. Keep `execution.mode` set to `"dry_run"`. Leave it there for at least
+2. Fill in `wash_sale_avoidance.linked_accounts` with every brokerage
+   account number you personally control, not just this one — if this is
+   genuinely the only account you trade in, a single-entry list (just
+   this account's number) is enough. Leave `enabled: true` unless you
+   specifically want buys never blocked on wash-sale grounds.
+3. Keep `execution.mode` set to `"dry_run"`. Leave it there for at least
    the number of cycles set in `dry_run_min_cycles_before_live` — don't
    shortcut this.
-3. After each cycle, read `trade_log.jsonl` yourself. Look specifically
+4. After each cycle, read `trade_log.jsonl` yourself. Look specifically
    at rejected candidates and stop-loss triggers, not just the trades
    that "worked" — that's where you'll see if the reasoning step is
    actually sound or just getting lucky with an uptrend.
-4. Only flip `execution.mode` to `"live"` yourself, by hand, after you've
+5. Only flip `execution.mode` to `"live"` yourself, by hand, after you've
    reviewed enough dry-run cycles to trust the output. Do not let the
    agent flip it for you as a shortcut.
 
