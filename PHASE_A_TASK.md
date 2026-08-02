@@ -102,6 +102,47 @@ For each flagged candidate, produce the thesis record from `README.md`
 - **No price targets.**
 - **No forecasting as fact** — "this suggests..." not "this will...".
 
+**`conviction` follows a fixed rubric, not open judgment** — the same
+underlying facts must produce the same rating regardless of which day
+this runs. Evaluate fresh each run using only what this run's own
+research found; never carry forward or average against a prior day's
+conviction for the same symbol — consistency comes from applying the
+same test every time, not from memory.
+
+- **`high`** requires **all** of:
+  - The catalyst is a specific, already-confirmed, company-disclosed
+    event (an earnings result, a signed deal/contract, a completed
+    regulatory approval, a disclosed structural risk) — not a rumor,
+    analyst opinion, technical pattern, or sector/macro-wide move, and
+    not still pending/anticipated (e.g. "ahead of earnings" caps at
+    `medium` no matter how bullish/bearish the setup sounds).
+  - The thesis explicitly names the strongest available counter-evidence
+    (a plausible positive if bearish, a plausible negative if bullish)
+    and gives a concrete reason it doesn't change the read — silence on
+    the counter-case, or listing it without resolving it, doesn't
+    qualify. ("...regardless of X" / "even though X" / "even with X" —
+    not just piling on more confirming evidence.)
+  - `risk_flags` is empty (see below).
+  - No unresolved binary catalyst (earnings date, court ruling,
+    regulatory deadline) falls before this position's next likely
+    review that could reverse the read.
+- **`low`** applies if **any** of:
+  - The thesis itself frames the evidence as mixed, offsetting, or
+    unresolved (e.g. "mixed," "offset by," "still isn't fully
+    confident," "unpredictable") rather than reaching a clear net read.
+  - The move is explained as technical, mechanical, or sentiment-driven
+    in a way that discounts its fundamental significance (e.g. "largely
+    mechanical," "sentiment-driven rather than a disclosed fundamental
+    deterioration").
+  - Any `risk_flags` entry is present.
+  - The catalyst is macro/sector-wide rather than company-specific
+    (e.g. "broad rotation," "sector sentiment").
+- **`medium`** is everything else: a real, credible, company-specific
+  catalyst exists and doesn't hit a `low` disqualifier, but the catalyst
+  is still pending, or multiple contributing factors are listed without
+  one clearly resolved as dominant, or no counter-case is explicitly
+  engaged and dismissed.
+
 **For a held position**, `direction` is `"long"` (still supports holding)
 or `"exit_existing"` (no longer does) — never `"avoid"` (that's only for
 not-yet-held candidates).
