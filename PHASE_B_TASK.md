@@ -201,8 +201,24 @@ whenever the stop-loss check triggers, a take-profit tier fires, or an
 loss (a stop-loss sell is always a loss by definition; check
 take-profit/`exit_existing` case by case against the fill), check the
 same `wash_sale_avoidance.linked_accounts` for a purchase of that symbol
-within `lookback_window_days` days before today. If found, add
-`"wash_sale_flag": true, "wash_sale_note": "possible wash sale -- <symbol> was bought in account <account_number> on <date>, within <lookback_window_days> days of this sale -- this loss may be disallowed (or, if <account_number> is an IRA, permanently disallowed) for tax purposes"`
+within `lookback_window_days` days before today.
+
+A qualifying purchase alone is not enough to flag — the wash-sale rule
+disallows the loss by rolling it into the cost basis of stock you still
+hold, so if nothing of that symbol remains held anywhere after this
+sale, there is no replacement position for a disallowed loss to attach
+to and it is not a wash sale, whatever the calendar gap. Concretely: a
+single purchase fully closed out by this same sale (that account's
+position in the symbol is now zero, and no other linked account holds
+or separately purchased the symbol within the window) is an ordinary
+closed round-trip, not a wash sale — do not flag it. Before adding the
+flag, call `get_equity_positions` for every account in
+`wash_sale_avoidance.linked_accounts` and confirm at least one of them
+still holds a nonzero quantity of the symbol after this sale, sourced
+from a purchase inside the lookback window (i.e. a genuine surviving
+replacement lot, not the shares this sale just closed out). Only then
+add
+`"wash_sale_flag": true, "wash_sale_note": "possible wash sale -- <symbol> was bought in account <account_number> on <date>, within <lookback_window_days> days of this sale, and a replacement position remains held in account <holding_account_number> -- this loss may be disallowed (or, if <holding_account_number> is an IRA, permanently disallowed) for tax purposes"`
 to that sell's `order` log entry. Purely informational for the human's
 own tax reconciliation — it never blocks, delays, or resizes the sell
 itself, and it does not require `wash_sale_avoidance.enabled` to be
