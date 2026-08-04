@@ -110,3 +110,8 @@ persistent state, not local disk.
   personal account, shared for others to learn from or adapt. It is
   genuinely not financial advice, and running it against real money is
   entirely your own decision and risk.
+
+## License
+
+MIT — see `LICENSE`. Provided as-is, with no warranty; see the license
+for the full disclaimer.
