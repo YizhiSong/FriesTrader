@@ -11,8 +11,14 @@
   },
 
   "stop_loss": {
+    "mode": "volatility_scaled",
     "hard_stop_pct": 0.07,
-    "note": "Every open position must have this stop checked on every cycle, independent of any new thesis about the stock. A good new narrative does not cancel a stop-loss."
+    "volatility_lookback_trading_days": 20,
+    "volatility_stdev_multiplier": 2.5,
+    "min_stop_pct": 0.05,
+    "max_stop_pct": 0.15,
+    "fallback_stop_pct": 0.07,
+    "note": "mode is 'fixed' or 'volatility_scaled' -- toggle only. 'fixed' uses the flat hard_stop_pct for every symbol. 'volatility_scaled': stop_pct per symbol = clamp(volatility_stdev_multiplier * stdev of daily close-to-close returns over volatility_lookback_trading_days, min_stop_pct, max_stop_pct), recomputed fresh from get_equity_historicals each cycle; falls back to fallback_stop_pct if historicals are unavailable or the symbol has fewer than 10 daily bars. Every open position must have this stop checked on every cycle, independent of any new thesis about the stock. A good new narrative does not cancel a stop-loss."
   },
 
   "take_profit": {

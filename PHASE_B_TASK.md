@@ -100,13 +100,32 @@ invalidates it, drop it as above.
 
 ## Step 5 — Mechanical risk enforcement
 
-**Stop-loss check (always runs, independent of new candidates):**
-Pull current `get_equity_positions` and fresh `get_equity_quotes` for
-every open position; compute drawdown from average cost. If it meets or
-exceeds `stop_loss.hard_stop_pct`, immediate full-position sell — no
-thesis review, never blocked by a loss-limit halt (it's an exit). Log
-`"stage": "stop_loss"`; if triggered, treat as a Step 6 sell candidate. A
-good thesis never cancels a stop-loss — see `risk_rules.json`'s note.
+**Stop-loss check (always runs, independent of new candidates):** Pull
+current `get_equity_positions` and fresh `get_equity_quotes` for every
+open position; compute drawdown from average cost.
+
+If `risk_rules.json`'s `stop_loss.mode` is `"fixed"`, each symbol's
+`stop_pct` is just `stop_loss.hard_stop_pct`.
+
+If `mode` is `"volatility_scaled"`: for each held symbol, call
+`get_equity_historicals` (interval=day, split-adjusted, last
+`stop_loss.volatility_lookback_trading_days` trading days — request
+~30 calendar days back to cover weekends/holidays, then use however
+many trading-day bars come back), drop any `interpolated: true` bars,
+and compute the standard deviation of daily close-to-close % returns.
+If fewer than 10 usable bars are available, or the historicals call
+fails, use `stop_loss.fallback_stop_pct` for that symbol this cycle and
+note why in the log. Otherwise `stop_pct = clamp(volatility_stdev_multiplier x stdev, min_stop_pct, max_stop_pct)`.
+
+Either way: if drawdown meets or exceeds that symbol's `stop_pct`,
+immediate full-position sell — no thesis review, never blocked by a
+loss-limit halt (it's an exit). Log `"stage": "stop_loss"` with
+`"stop_pct_used": <computed>` always included; when `mode` is
+`volatility_scaled`, also include `"stdev_20d": <computed>`, or
+`"fallback_reason": "<insufficient bars | historicals call failed>"`
+if the fallback applied. If triggered, treat as a Step 6 sell
+candidate. A good thesis never cancels a stop-loss — see
+`risk_rules.json`'s note.
 
 **Take-profit check (always runs, independent of new candidates, tiered
 partial sells)**: Using the same pull as the stop-loss check (no need to
