@@ -1,4 +1,4 @@
-# not-financial-advice
+# FriesTrader
 
 An agentic trading pipeline: Claude Code + a brokerage MCP connector,
 running as two scheduled cloud sessions that screen, reason about, and
