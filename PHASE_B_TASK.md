@@ -410,6 +410,13 @@ happened:
 Load-bearing — Step 0's dry-run cycle count depends on this line existing
 every run, keyed off `"date"` (distinct dates), not `"timestamp"`.
 
+**After appending, regenerate `trade_log_recent.jsonl`** (full
+overwrite, not append) with every line from `trade_log.jsonl` whose
+`"date"` equals today's — a quick, mobile-friendly read of just the
+latest cycle. Convenience view only, not a second audit trail:
+`trade_log.jsonl` is still the source of truth, and if the two ever
+disagree, trust `trade_log.jsonl`.
+
 ## Hard rules
 
 - Never change `execution.mode` or any `risk_rules.json` value.

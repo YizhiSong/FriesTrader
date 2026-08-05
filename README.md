@@ -51,6 +51,10 @@ persistent state, not local disk.
   each phase follows.
 - `trade_log_template.jsonl` — the log line shapes; real logs should
   accumulate in a file like `trade_log.jsonl` in this same style.
+  Phase B also regenerates a `trade_log_recent.jsonl` (full overwrite)
+  containing just the latest day's lines, for a quick mobile/GitHub read
+  without scrolling the full history — convenience view only, `trade_log.jsonl`
+  is still the source of truth.
 
 ## Thesis record shape (Phase A, Step 3)
 
