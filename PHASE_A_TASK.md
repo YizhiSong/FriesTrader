@@ -39,13 +39,16 @@ exposure..."), so no separate judgment about whether the leverage is
 currently risky. Log the reason as
 `"leveraged/inverse ETF (description: \"<matched phrase>\") — excluded per universe.exclude: <leveraged_etfs|inverse_etfs>"`.
 
-**Always add every held position** on top of the watchlist-derived list
-(`get_equity_positions`, account_number from `risk_rules.json`),
-regardless of filters or watchlist membership — a held position must
-stay eligible for a fresh thesis (including `exit_existing`) and never
-get silently dropped for being illiquid, small-cap, or off the list.
-Held positions don't count against `max_candidates_per_cycle` (add them
-after that cap is applied). Log as
+**Always ensure every held position is in the final list**
+(`get_equity_positions`, account_number from `risk_rules.json`) — if one
+already made it through on its own (e.g. it's also on the watchlist),
+leave it as-is, don't add a duplicate. `max_candidates_per_cycle` is a
+cap on **non-held** candidates only: exclude held positions from that
+count entirely before checking whether the cap was exceeded, so a held
+position can never occupy a slot or cause a non-held candidate to be
+dropped. A held position must stay eligible for a fresh thesis
+(including `exit_existing`) and never get silently dropped for being
+illiquid, small-cap, or off the list. Log as
 `"stage": "screened", "passed_filters": true, "reason": "currently held — always included"`
 regardless of what the filters would have said.
 
