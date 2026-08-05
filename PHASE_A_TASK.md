@@ -23,20 +23,17 @@ Pull current prices for the capped candidate list via `get_equity_quotes`
 (batched into one call), fresh every run. Use `last_trade_price` as
 `current_price` in Steps 2–3.
 
-`exclude`'s `"penny_stocks"` entry is a **mechanical price check, not a
-judgment call**: exclude a candidate if its current price <
-`universe.penny_stock_price_threshold_usd`, full stop — same cutoff every
-run, regardless of how the stock is otherwise trading. Log the reason as
+`exclude`'s `"penny_stocks"` entry is mechanical, not a judgment call:
+exclude if current price < `universe.penny_stock_price_threshold_usd`,
+regardless of how the stock is otherwise trading. Log the reason as
 `"penny stock (price $<X>, under $<threshold>) — excluded per universe.exclude: penny_stocks"`.
 
 `exclude`'s `"leveraged_etfs"`/`"inverse_etfs"` entries are also
-**mechanical, not a judgment call**: exclude a candidate if Step 1's
-`get_equity_fundamentals` `description` field contains the word
-"leveraged" or "inverse" (case-insensitive substring match), full stop —
-fund providers state this directly (e.g. TQQQ's description reads
-"provides 3x leveraged exposure...", SQQQ's reads "provides (-3x) inverse
-exposure..."), so no separate judgment about whether the leverage is
-currently risky. Log the reason as
+mechanical: exclude if Step 1's `get_equity_fundamentals` `description`
+field contains "leveraged" or "inverse" (case-insensitive substring
+match) — fund providers state this directly (e.g. TQQQ: "provides 3x
+leveraged exposure...", SQQQ: "provides (-3x) inverse exposure..."), no
+judgment about current risk needed. Log the reason as
 `"leveraged/inverse ETF (description: \"<matched phrase>\") — excluded per universe.exclude: <leveraged_etfs|inverse_etfs>"`.
 
 **Always ensure every held position is in the final list**
@@ -113,8 +110,7 @@ For each flagged candidate, produce the thesis record from `README.md`
 underlying facts must produce the same rating regardless of which day
 this runs. Evaluate fresh each run using only what this run's own
 research found; never carry forward or average against a prior day's
-conviction for the same symbol — consistency comes from applying the
-same test every time, not from memory.
+conviction for the same symbol.
 
 - **`high`** requires **all** of:
   - The catalyst is a specific, already-confirmed, company-disclosed
@@ -179,9 +175,8 @@ primary within-tier tie-break, ahead of `pct_below_52wk_high`.
 `high_52_weeks` from Step 1's `get_equity_fundamentals` call,
 `current_price` from Step 1's `get_equity_quotes` call. Used by
 Phase B (Step 5) as the secondary within-tier tie-break, after
-`risk_flags` — a disclosed "room in the setup" proxy, not a rigorous
-fair-value calculation. Omit for `avoid`/`exit_existing` candidates; it
-isn't used for those.
+`risk_flags` — a disclosed "room in the setup" proxy, not a fair-value
+calc. Omit for `avoid`/`exit_existing`.
 
 **Include a `sources` field** listing outlet name + URL for every search
 result that informed this thesis (e.g.
@@ -195,10 +190,9 @@ omitting the field.
 
 ## Output
 
-**Overwrite `pending_proposals.jsonl` at the start of this run** (replace,
-don't append) — it should hold only today's candidates; history remains
-auditable via `trade_log.jsonl`, which Phase B writes to when acting on a
-proposal.
+**Overwrite `pending_proposals.jsonl` at the start of this run** — it
+should hold only today's candidates; history remains auditable via
+`trade_log.jsonl`, which Phase B writes to when acting on a proposal.
 
 Every line needs a real `"timestamp"` (`HH:mm:ss`, e.g. via
 `TZ='America/Chicago' date +'%H:%M:%S'` — never guessed) alongside
@@ -235,13 +229,18 @@ buckets, in order, even if empty:
 {"date": "YYYY-MM-DD", "timestamp": "HH:mm:ss", "stage": "summary", "decision": "rejected", "symbols": ["AMC", "ADDYY"]}
 {"date": "YYYY-MM-DD", "timestamp": "HH:mm:ss", "stage": "summary", "decision": "no_signal", "symbols": ["TSLA", "NVDA", "..."]}
 {"date": "YYYY-MM-DD", "timestamp": "HH:mm:ss", "stage": "summary", "decision": "avoid", "symbols": ["SPCX", "LCID", "..."]}
-{"date": "YYYY-MM-DD", "timestamp": "HH:mm:ss", "stage": "summary", "decision": "long", "symbols": ["AAPL", "AMD", "..."]}
+{"date": "YYYY-MM-DD", "timestamp": "HH:mm:ss", "stage": "summary", "decision": "long", "symbols": ["AAPL (medium)", "AMD (high)", "..."]}
 {"date": "YYYY-MM-DD", "timestamp": "HH:mm:ss", "stage": "summary", "decision": "exit_existing", "symbols": []}
 ```
 
 `rejected` = failed universe filter. `no_signal` = passed filters, no
 Step 2 signal/thesis. `avoid`/`long`/`exit_existing` = matches the
-thesis's `direction`. No reason/conviction fields — symbol lists only.
+thesis's `direction`. Plain symbol lists throughout, except `long`
+appends each symbol's own thesis `conviction` as `"<symbol>
+(<conviction>)"` — the one bucket where it drives sizing; the others
+carry a conviction too, it's just not decision-relevant there. No other
+reason/detail fields — a quick-glance list, not a substitute for the
+thesis lines.
 
 ## Hard stop
 
