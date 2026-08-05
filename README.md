@@ -1,10 +1,15 @@
 # FriesTrader
 
-An agentic trading pipeline: Claude Code + a brokerage MCP connector,
-running as two scheduled cloud sessions that screen, reason about, and
-(under a narrow, explicit gate) execute real trades — with the actual
-safety mechanism being mechanical, auditable risk rules, not the LLM's
-judgment.
+An AI trading agent built to run cheap and fully on its own. Once set up,
+it runs unattended on its own schedule every weekday, no manual triggering
+needed. Two short scheduled Claude Code sessions a day screen stocks,
+write out their reasoning, and (only under a narrow, explicit gate) place
+real trades, without a team of specialized sub-agents burning tokens on
+every decision. The actual safety mechanism is mechanical, auditable risk
+rules, not the model's judgment, and because it's just two lean sessions
+instead of a multi-agent pipeline, it runs comfortably on a Claude Pro
+subscription (as low as $200/year on the annual plan), no Claude Max or
+metered API spend required.
 
 This is a template/framework extracted from a real, live deployment.
 Adapt it, don't just run it blind — read "What this does and doesn't
