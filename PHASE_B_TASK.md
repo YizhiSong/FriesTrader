@@ -410,12 +410,20 @@ happened:
 Load-bearing — Step 0's dry-run cycle count depends on this line existing
 every run, keyed off `"date"` (distinct dates), not `"timestamp"`.
 
-**After appending, regenerate `trade_log_recent.jsonl`** (full
-overwrite, not append) with every line from `trade_log.jsonl` whose
-`"date"` equals today's — a quick, mobile-friendly read of just the
-latest cycle. Convenience view only, not a second audit trail:
-`trade_log.jsonl` is still the source of truth, and if the two ever
-disagree, trust `trade_log.jsonl`.
+**After appending, regenerate `trade_log_recent.md`** (full overwrite,
+not append) — a short, plain-English recap of today's cycle for a quick
+mobile/GitHub read, not another machine format. A `# YYYY-MM-DD`
+heading, then prose/bullet sections covering only what actually
+happened this cycle (skip anything empty): the loss-limit check result;
+each held position's stop-loss/take-profit status (symbol, `stop_pct`
+used, gain/drawdown, and whether it triggered, fired a tier, sold, or
+is just holding); each new-entry/top-up candidate considered and its
+outcome in one line (approved and sized, or rejected and why); and any
+orders actually placed (symbol, buy/sell, dollar amount). This is a
+readable render of what this cycle already decided — no new research,
+no re-deciding anything. Convenience view only, not a second audit
+trail: `trade_log.jsonl` is still the source of truth, and if the two
+ever disagree, trust `trade_log.jsonl`.
 
 ## Hard rules
 
