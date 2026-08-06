@@ -7,7 +7,10 @@
   "position_sizing": {
     "max_position_pct_of_account": 0.20,
     "max_concurrent_positions": 4,
-    "min_cash_buffer_pct": 0.10
+    "min_cash_buffer_pct": 0.10,
+    "min_top_up_usd": 5.00,
+    "min_top_up_pct_of_target": 0.10,
+    "min_top_up_note": "A top-up only fires if the computed buy amount clears max($1.00 broker minimum, min_top_up_usd, min_top_up_pct_of_target x target_size for that candidate's conviction tier). Below that, skip without calling review_equity_order -- a top-up smaller than this doesn't move the position meaningfully, and letting headroom shrink toward zero every cycle otherwise generates a long tail of dust-sized orders as the position converges on target. Applies to top-ups only, never to new-entry sizing."
   },
 
   "stop_loss": {
