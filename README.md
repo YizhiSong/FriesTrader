@@ -3,20 +3,30 @@
 ![License](https://img.shields.io/github/license/YizhiSong/FriesTrader)
 ![GitHub stars](https://img.shields.io/github/stars/YizhiSong/FriesTrader)
 
-An AI trading agent built to run cheap and fully on its own. Once set up,
-it runs unattended on its own schedule every weekday, no manual triggering
-needed. Two short scheduled Claude Code sessions a day screen stocks,
-write out their reasoning, and (only under a narrow, explicit gate) place
-real trades, without a team of specialized sub-agents burning tokens on
-every decision. The actual safety mechanism is mechanical, auditable risk
-rules, not the model's judgment, and because it's just two lean sessions
-instead of a multi-agent pipeline, it runs comfortably on a Claude Pro
-subscription (as low as $200/year on the annual plan), no Claude Max or
-metered API spend required.
+An AI trading agent built to run cheap and fully on its own, trading real
+orders on [Robinhood](https://robinhood.com) using its
+[Agentic Trading MCP server](https://robinhood.com/us/en/agentic-trading/).
+Once set up, it runs unattended on its own schedule every weekday, no
+manual triggering needed. Two short scheduled Claude Code sessions a day
+screen stocks, write out their reasoning, and (only under a narrow,
+explicit gate) place real trades, without a team of specialized
+sub-agents burning tokens on every decision. The actual safety mechanism
+is mechanical, auditable risk rules, not the model's judgment, and
+because it's just two lean sessions instead of a multi-agent pipeline, it
+runs comfortably on a Claude Pro subscription (as low as $200/year on the
+annual plan), no Claude Max or metered API spend required.
 
 This is a template/framework extracted from a real, live deployment.
 Adapt it, don't just run it blind — read "What this does and doesn't
 solve" below before pointing it at real money.
+
+## Requirements
+
+- A [Robinhood](https://robinhood.com) account with
+  [Agentic Trading](https://robinhood.com/us/en/agentic-trading/) enabled,
+  connected via Robinhood's own MCP server.
+- [Claude Code](https://claude.com/claude-code), on a Pro subscription or
+  higher.
 
 ## How it works
 
@@ -24,6 +34,18 @@ Trading runs as **two separate phases, on two separate schedules** — a
 full trading day's closing data feeds the thesis, and a fresh opening
 price is used for the actual order, rather than trading on a stale
 overnight price.
+
+```mermaid
+graph TD
+    RH[Robinhood MCP] -- watchlist / quotes / historicals --> A[Phase A: Screen & Thesis]
+    A -- thesis per candidate --> P[pending_proposals.jsonl]
+    P --> B[Phase B: Re-verify & Risk Enforcement]
+    RR[risk_rules.json] -- mechanical limits --> B
+    RH -- fresh open price / positions --> B
+    B -- dry_run or gated live order --> RH
+    B -- every decision logged --> L[trade_log.jsonl]
+    L -- plain-English recap --> REC[trade_log_recent.md]
+```
 
 - **Phase A** (Steps 1–3, ~4:30pm Central weekdays) — screens candidates,
   gathers signals, writes a logged thesis per candidate to
@@ -94,13 +116,13 @@ looks something like this (symbols genericized, not a real account):
 
 ## First-time setup
 
-1. Fill in `account_number` in `risk_rules.json` with your own brokerage
+1. Fill in `account_number` in `risk_rules.json` with your own Robinhood
    account number, set `starting_capital_usd` to your real starting
    balance, set `universe.watchlist_name` to a watchlist you've already
-   created and populated in your brokerage account, and review every
+   created and populated in your Robinhood account, and review every
    other threshold — the defaults here are illustrative, not a
    recommendation.
-2. Fill in `wash_sale_avoidance.linked_accounts` with every brokerage
+2. Fill in `wash_sale_avoidance.linked_accounts` with every Robinhood
    account number you personally control, not just this one — if this is
    genuinely the only account you trade in, a single-entry list (just
    this account's number) is enough. Leave `enabled: true` unless you
