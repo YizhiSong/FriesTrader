@@ -95,30 +95,36 @@ persistent state, not local disk.
    data (`trade_log.jsonl`, proposals) once running. Phase A/B commit and
    push results back to `main`, so you need a repo you actually control,
    not this one.
-2. Fill in `account_number` in `risk_rules.json` with your own Robinhood
+2. Connect Robinhood's [Agentic Trading](https://robinhood.com/us/en/agentic-trading/)
+   MCP server to Claude Code (or to your routine's MCP connections) —
+   see that page for how to authorize it and get the connection URL.
+   Nothing below works without this: every tool call in
+   `PHASE_A_TASK.md`/`PHASE_B_TASK.md` (quotes, positions, orders, etc.)
+   goes through it.
+3. Fill in `account_number` in `risk_rules.json` with your own Robinhood
    account number, set `starting_capital_usd` to your real starting
    balance, set `universe.watchlist_name` to a watchlist you've already
    created and populated in your Robinhood account, and review every
    other threshold — the defaults here are illustrative, not a
    recommendation.
-3. Create a scan via the Robinhood MCP's `create_scan` tool (relative
+4. Create a scan via the Robinhood MCP's `create_scan` tool (relative
    volume > 2.0x, market cap above your `min_market_cap_usd`), then paste
    its ID into `universe.supplementary_scan_id`. Phase A calls this scan
    every run to surface movers outside your watchlist — left as the
    placeholder, that call fails every cycle.
-4. Fill in `wash_sale_avoidance.linked_accounts` with every Robinhood
+5. Fill in `wash_sale_avoidance.linked_accounts` with every Robinhood
    account number you personally control, not just this one — if this is
    genuinely the only account you trade in, a single-entry list (just
    this account's number) is enough. Leave `enabled: true` unless you
    specifically want buys never blocked on wash-sale grounds.
-5. Keep `execution.mode` set to `"dry_run"`. Leave it there for at least
+6. Keep `execution.mode` set to `"dry_run"`. Leave it there for at least
    the number of cycles set in `dry_run_min_cycles_before_live` — don't
    shortcut this.
-6. After each cycle, read `trade_log.jsonl` yourself. Look specifically
+7. After each cycle, read `trade_log.jsonl` yourself. Look specifically
    at rejected candidates and stop-loss triggers, not just the trades
    that "worked" — that's where you'll see if the reasoning step is
    actually sound or just getting lucky with an uptrend.
-7. Only flip `execution.mode` to `"live"` yourself, by hand, after you've
+8. Only flip `execution.mode` to `"live"` yourself, by hand, after you've
    reviewed enough dry-run cycles to trust the output. Do not let the
    agent flip it for you as a shortcut.
 
