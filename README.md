@@ -40,20 +40,8 @@ persistent state, not local disk.
 
 - `risk_rules.json` — the hard, mechanical limits (position sizing, stop-
   loss, loss limits, universe filters, execution mode). Nothing in this
-  system should be able to override these. **Fill in your own
-  `account_number` before using this** — the placeholder here is not a
-  real account. **Also set `starting_capital_usd`** to your real starting
-  balance — every loss-limit and P&L calculation measures against this
-  number. **Also set `universe.watchlist_name`** to the name of a
-  watchlist you actually have in your brokerage account — Phase A pulls
-  candidates from that list by name, not a hardcoded one. **Also fill in
-  `wash_sale_avoidance.linked_accounts`** with every brokerage account
-  number you personally control that might hold the same symbols (a
-  separate personal account, an IRA, etc.) — the IRS wash-sale rule
-  applies per taxpayer across all your accounts, not just this one, and
-  this list is how the guard checks the others. Set
-  `wash_sale_avoidance.enabled` to `false` if you'd rather not have buys
-  blocked by this check at all.
+  system should be able to override these. Several fields need your own
+  account details before this is usable — see First-time setup below.
 - `PHASE_A_TASK.md` / `PHASE_B_TASK.md` — the full, self-contained spec
   each phase follows.
 - `trade_log_template.jsonl` — the log line shapes; real logs should
