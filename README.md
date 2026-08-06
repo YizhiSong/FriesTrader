@@ -38,7 +38,7 @@ overnight price.
 
 ```mermaid
 graph TD
-    RH[Robinhood MCP] -- watchlist / quotes / historicals --> A[Phase A: Screen & Thesis]
+    RH[Robinhood MCP] -- watchlist + scan / quotes / historicals --> A[Phase A: Screen & Thesis]
     A -- thesis per candidate --> P[pending_proposals.jsonl]
     P --> B[Phase B: Re-verify & Risk Enforcement]
     RR[risk_rules.json] -- mechanical limits --> B
@@ -48,9 +48,10 @@ graph TD
     L -- plain-English recap --> REC[trade_log_recent.md]
 ```
 
-- **Phase A** (Steps 1–3, ~4:30pm Central weekdays) — screens candidates,
-  gathers signals, writes a logged thesis per candidate to
-  `pending_proposals.jsonl`. Places no orders, not even dry-run ones.
+- **Phase A** (Steps 1–3, ~4:30pm Central weekdays) — screens candidates
+  from your watchlist plus a supplementary market scan, gathers signals,
+  writes a logged thesis per candidate to `pending_proposals.jsonl`.
+  Places no orders, not even dry-run ones.
   Full spec: `PHASE_A_TASK.md`.
 - **Phase B** (Steps 4–7, ~8:35am Central weekdays) — re-verifies Phase A's
   proposals against fresh opening data, enforces `risk_rules.json`
