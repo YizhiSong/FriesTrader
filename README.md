@@ -95,12 +95,13 @@ persistent state, not local disk.
    data (`trade_log.jsonl`, proposals) once running. Phase A/B commit and
    push results back to `main`, so you need a repo you actually control,
    not this one.
-2. Connect Robinhood's [Agentic Trading](https://robinhood.com/us/en/agentic-trading/)
-   MCP server to Claude Code (or to your routine's MCP connections) —
-   see that page for how to authorize it and get the connection URL.
-   Nothing below works without this: every tool call in
-   `PHASE_A_TASK.md`/`PHASE_B_TASK.md` (quotes, positions, orders, etc.)
-   goes through it.
+2. Robinhood's [Agentic Trading](https://robinhood.com/us/en/agentic-trading/)
+   requires a separate, dedicated account — distinct from your regular
+   investing account, and restricted to only the funds you put in it. See
+   that page to open one and connect its MCP server to Claude Code (or to
+   your routine's MCP connections). Nothing below works without this:
+   every tool call in `PHASE_A_TASK.md`/`PHASE_B_TASK.md` (quotes,
+   positions, orders, etc.) goes through it.
 3. Fill in `account_number` in `risk_rules.json` with your own Robinhood
    account number, set `starting_capital_usd` to your real starting
    balance, set `universe.watchlist_name` to a watchlist you've already
@@ -127,6 +128,19 @@ persistent state, not local disk.
 8. Only flip `execution.mode` to `"live"` yourself, by hand, after you've
    reviewed enough dry-run cycles to trust the output. Do not let the
    agent flip it for you as a shortcut.
+
+## Keeping your fork updated
+
+This template gets improvements over time. To pull them into your fork:
+
+```
+git remote add upstream https://github.com/YizhiSong/FriesTrader.git
+git fetch upstream
+git merge upstream/main
+```
+
+Resolve any conflicts in `risk_rules.json` by hand — your own account
+details and thresholds should win, not upstream's placeholders.
 
 ## Running it
 
