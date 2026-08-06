@@ -63,9 +63,10 @@ commits/pushes its results back to `main`, so the repo itself is the
 persistent state, not local disk.
 
 - `risk_rules.json` — the hard, mechanical limits (position sizing, stop-
-  loss, loss limits, universe filters, execution mode). Nothing in this
-  system should be able to override these. Several fields need your own
-  account details before this is usable — see First-time setup below.
+  loss, loss limits, universe filters, execution mode, wash-sale guard).
+  Nothing in this system should be able to override these. Several
+  fields need your own account details before this is usable — see
+  First-time setup below.
 - `PHASE_A_TASK.md` / `PHASE_B_TASK.md` — the full, self-contained spec
   each phase follows.
 - `trade_log_template.jsonl` — the log line shapes; real logs accumulate
