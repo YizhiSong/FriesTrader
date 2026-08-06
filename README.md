@@ -61,6 +61,30 @@ independent of any local machine — each run clones this repo fresh and
 commits/pushes its results back to `main`, so the repo itself is the
 persistent state, not local disk.
 
+## Running it
+
+Two schedules need to fire: Phase A around 4:30pm Central on weekdays
+(hand Claude Code `PHASE_A_TASK.md` to execute), and Phase B around
+8:35am Central on weekdays, 5 minutes after market open (hand it
+`PHASE_B_TASK.md`). Each run is a fresh Claude Code session pointed at
+this repo — no state needs to persist locally between runs, since the
+repo itself (`risk_rules.json`, `pending_proposals.jsonl`,
+`trade_log.jsonl`) is what's read and written each time.
+
+- **Recommended: Claude Code's own scheduled cloud routines.** Set one
+  routine to run `PHASE_A_TASK.md` on the Phase A schedule and a second
+  for `PHASE_B_TASK.md` on the Phase B schedule. This runs independent of
+  any machine being on — the actual point of "fully automated."
+- **Alternative: a local scheduler** (cron, Windows Task Scheduler, etc.)
+  invoking the Claude Code CLI against this repo on the same two
+  schedules. Works, but only while that machine is running, and you're
+  responsible for keeping the repo synced (`git pull` before, `git push`
+  after each run) since the repo — not local disk — is the source of
+  truth. If you go this route, make sure only one scheduler is ever
+  active for a given phase — two schedulers firing the same phase in the
+  same cycle risks duplicate `risk_check`/`order` log entries, or
+  duplicate real orders once `execution.mode` is `"live"`.
+
 ### Example cycle output
 
 `trade_log_recent.md` is regenerated every Phase B run — a plain-English
