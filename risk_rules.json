@@ -43,7 +43,7 @@
   },
 
   "universe": {
-    "watchlist_name": "Wishlist",
+    "watchlist_name": "YOUR_WATCHLIST_NAME_HERE",
     "watchlist_max_candidates": 25,
     "min_avg_daily_volume": 1000000,
     "min_market_cap_usd": 2000000000,

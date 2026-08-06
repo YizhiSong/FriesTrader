@@ -42,7 +42,9 @@ persistent state, not local disk.
   loss, loss limits, universe filters, execution mode). Nothing in this
   system should be able to override these. **Fill in your own
   `account_number` before using this** — the placeholder here is not a
-  real account. **Also set `universe.watchlist_name`** to the name of a
+  real account. **Also set `starting_capital_usd`** to your real starting
+  balance — every loss-limit and P&L calculation measures against this
+  number. **Also set `universe.watchlist_name`** to the name of a
   watchlist you actually have in your brokerage account — Phase A pulls
   candidates from that list by name, not a hardcoded one. **Also fill in
   `wash_sale_avoidance.linked_accounts`** with every brokerage account
@@ -83,9 +85,10 @@ persistent state, not local disk.
 ## First-time setup
 
 1. Fill in `account_number` in `risk_rules.json` with your own brokerage
-   account number, set `universe.watchlist_name` to a watchlist you've
-   already created and populated in your brokerage account, and review
-   every other threshold — the defaults here are illustrative, not a
+   account number, set `starting_capital_usd` to your real starting
+   balance, set `universe.watchlist_name` to a watchlist you've already
+   created and populated in your brokerage account, and review every
+   other threshold — the defaults here are illustrative, not a
    recommendation.
 2. Fill in `wash_sale_avoidance.linked_accounts` with every brokerage
    account number you personally control, not just this one — if this is
