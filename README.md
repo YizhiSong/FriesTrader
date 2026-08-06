@@ -61,6 +61,15 @@ independent of any local machine — each run clones this repo fresh and
 commits/pushes its results back to `main`, so the repo itself is the
 persistent state, not local disk.
 
+- `risk_rules.json` — the hard, mechanical limits (position sizing, stop-
+  loss, loss limits, universe filters, execution mode). Nothing in this
+  system should be able to override these. Several fields need your own
+  account details before this is usable — see First-time setup below.
+- `PHASE_A_TASK.md` / `PHASE_B_TASK.md` — the full, self-contained spec
+  each phase follows.
+- `trade_log_template.jsonl` — the log line shapes; real logs accumulate
+  in `trade_log.jsonl` in this same style.
+
 ## What this does and doesn't solve
 
 - It gives you a structured, auditable version of "let an LLM screen and
@@ -208,24 +217,7 @@ looks something like this (symbols genericized, not a real account):
 >
 > **Orders placed**: OTHER — buy $60.00 (dry_run)
 
-## Reference
-
-### Files
-
-- `risk_rules.json` — the hard, mechanical limits (position sizing, stop-
-  loss, loss limits, universe filters, execution mode). Nothing in this
-  system should be able to override these. Several fields need your own
-  account details before this is usable — see First-time setup above.
-- `PHASE_A_TASK.md` / `PHASE_B_TASK.md` — the full, self-contained spec
-  each phase follows.
-- `trade_log_template.jsonl` — the log line shapes; real logs should
-  accumulate in a file like `trade_log.jsonl` in this same style.
-  Phase B also regenerates `trade_log_recent.md` (full overwrite) — a
-  plain-English recap of the latest day, for a quick mobile/GitHub read
-  without parsing raw JSON — convenience view only, `trade_log.jsonl`
-  is still the source of truth.
-
-### Thesis record shape (Phase A, Step 3)
+## Thesis record shape (Phase A, Step 3)
 
 ```json
 {
