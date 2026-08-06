@@ -15,9 +15,29 @@ Pull symbols from the Robinhood watchlist named `universe.watchlist_name`
 in `risk_rules.json` (read fresh each run — don't assume prior values or
 hardcode the name). Call `get_watchlists` to find its `list_id` by
 matching `display_name`, then `get_watchlist_items` on that `list_id` —
-ignore all other watchlists. Dedupe, filter via `get_equity_fundamentals`
-against `risk_rules.json`'s current `universe` block, and cap at
-`universe.max_candidates_per_cycle`.
+ignore all other watchlists.
+
+**Supplementary market scan** (additive, not a replacement): call
+`run_scan` with `universe.supplementary_scan_id` — a saved Robinhood
+scanner (relative volume and market cap criteria, see
+`universe.supplementary_scan_note`) that surfaces genuinely notable
+movers from outside your watchlist, so candidate selection isn't limited
+to names you've personally added. Drop any scan result that's already on
+the watchlist (it's already a watchlist candidate, not a second one) or
+already a held position (always included regardless, per below). From
+what's left, take up to `universe.supplementary_scan_max_candidates` —
+the scan's own default ordering, no re-ranking needed — and mark each
+`"source": "market_scan"` on its `screened` line (watchlist-sourced and
+held candidates get `"source": "watchlist"`). This cap is **separate
+from and additive to** `max_candidates_per_cycle` below — scan results
+never compete with watchlist candidates for the same slots.
+
+Dedupe the combined (watchlist + capped scan) list, filter via
+`get_equity_fundamentals` against `risk_rules.json`'s current `universe`
+block, and cap the **watchlist-sourced, non-held** portion at
+`universe.max_candidates_per_cycle` — the scan's own separate cap above
+already bounds its own contribution, so this cap only ever applies to
+watchlist candidates.
 
 Pull current prices for the capped candidate list via `get_equity_quotes`
 (batched into one call), fresh every run. Use `last_trade_price` as
@@ -85,7 +105,27 @@ without re-pulling data.
 
 If none apply, no search/thesis this run — log as `screened`-only.
 Qualifying candidates' searches stay within
-`cadence.news_search_budget_per_cycle` (per run, not per stock).
+`cadence.news_search_budget_per_cycle` (per run, not per stock; held
+positions draw from their own separate budget above, not this one).
+
+**If more candidates qualify than the budget allows**, prioritize by how
+far each one exceeded the specific threshold it tripped — not conviction
+or `risk_flags` (those don't exist yet; they're outputs of the search
+this budget gates, not inputs to it). Compute a **magnitude score** per
+qualifying candidate:
+- Price move: `actual_price_move_60d_pct / price_move_60d_pct` (threshold).
+- Volume spike: `actual_volume_spike / volume_spike_multiple` (threshold).
+- 52-week extreme: `pct_from_52wk_extreme` (threshold) `/ actual_pct_from_52wk_extreme`
+  (whichever of the two 52-week-extreme ratios triggered) — inverted,
+  since smaller = closer to the extreme = more notable.
+If a candidate qualifies under more than one criterion, use its
+**highest** score. Process qualifying candidates in descending score
+order, spending the budget as you go. Any candidate that would push
+spend past `cadence.news_search_budget_per_cycle` is skipped this
+cycle — log
+`"stage": "screened", "passed_filters": true, "reason": "news search budget exhausted this cycle (<N> of <cadence.news_search_budget_per_cycle> already spent on higher-magnitude signals) — no thesis this run"`.
+It remains a normal candidate next cycle, re-screened fresh (no
+carryover priority).
 
 **Exception — held positions always get a fresh thesis**, signal or not.
 Run one targeted news search per held position (separate budget from
@@ -201,7 +241,8 @@ never used for idempotency or other logic.
 
 Write:
 - One `"stage": "screened"` line per candidate (`passed_filters`,
-  `avg_volume`, `market_cap`, `reason` if rejected — shape matches
+  `source` (`"watchlist"` or `"market_scan"`), `avg_volume`,
+  `market_cap`, `reason` if rejected — shape matches
   `trade_log_template.jsonl`), plus `"signal_check"` noting which Step 2
   threshold(s) triggered, **each ratio paired with its raw inputs**
   (examples below) so the arithmetic is checkable — raw numbers must be
