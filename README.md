@@ -1,5 +1,8 @@
 # FriesTrader
 
+![License](https://img.shields.io/github/license/YizhiSong/FriesTrader)
+![GitHub stars](https://img.shields.io/github/stars/YizhiSong/FriesTrader)
+
 An AI trading agent built to run cheap and fully on its own. Once set up,
 it runs unattended on its own schedule every weekday, no manual triggering
 needed. Two short scheduled Claude Code sessions a day screen stocks,
@@ -35,6 +38,25 @@ Both are designed to run as cloud-hosted scheduled agent sessions,
 independent of any local machine — each run clones this repo fresh and
 commits/pushes its results back to `main`, so the repo itself is the
 persistent state, not local disk.
+
+### Example cycle output
+
+`trade_log_recent.md` is regenerated every Phase B run — a plain-English
+recap for a quick mobile/GitHub read, no JSON-parsing required. A day
+looks something like this (symbols genericized, not a real account):
+
+> **2026-07-09**
+>
+> **Loss limit**: OK — daily 0.0%, weekly -2.1%, within -5%/-10% limits.
+>
+> **Held positions** (stop-loss / take-profit):
+> - EXAMPLE — stop 7.00% (vol-scaled), drawdown -2.3% — holding
+>
+> **New-entry candidates considered**: OTHER, ANOTHER
+> - OTHER — approved: medium conviction, $60.00 (12% of account)
+> - ANOTHER — rejected: max_concurrent_positions already filled this cycle
+>
+> **Orders placed**: OTHER — buy $60.00 (dry_run)
 
 ## Files
 
