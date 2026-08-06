@@ -29,13 +29,13 @@ what's left, take up to `universe.supplementary_scan_max_candidates` —
 the scan's own default ordering, no re-ranking needed — and mark each
 `"source": "market_scan"` on its `screened` line (watchlist-sourced and
 held candidates get `"source": "watchlist"`). This cap is **separate
-from and additive to** `max_candidates_per_cycle` below — scan results
+from and additive to** `watchlist_max_candidates` below — scan results
 never compete with watchlist candidates for the same slots.
 
 Dedupe the combined (watchlist + capped scan) list, filter via
 `get_equity_fundamentals` against `risk_rules.json`'s current `universe`
 block, and cap the **watchlist-sourced, non-held** portion at
-`universe.max_candidates_per_cycle` — the scan's own separate cap above
+`universe.watchlist_max_candidates` — the scan's own separate cap above
 already bounds its own contribution, so this cap only ever applies to
 watchlist candidates.
 
@@ -59,7 +59,7 @@ judgment about current risk needed. Log the reason as
 **Always ensure every held position is in the final list**
 (`get_equity_positions`, account_number from `risk_rules.json`) — if one
 already made it through on its own (e.g. it's also on the watchlist),
-leave it as-is, don't add a duplicate. `max_candidates_per_cycle` is a
+leave it as-is, don't add a duplicate. `watchlist_max_candidates` is a
 cap on **non-held** candidates only: exclude held positions from that
 count entirely before checking whether the cap was exceeded, so a held
 position can never occupy a slot or cause a non-held candidate to be
