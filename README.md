@@ -131,16 +131,20 @@ persistent state, not local disk.
 
 ## Keeping your fork updated
 
-This template gets improvements over time. To pull them into your fork:
+This template gets improvements over time.
 
-```
-git remote add upstream https://github.com/YizhiSong/FriesTrader.git
-git fetch upstream
-git merge upstream/main
-```
-
-Resolve any conflicts in `risk_rules.json` by hand — your own account
-details and thresholds should win, not upstream's placeholders.
+- **Easiest: GitHub's "Sync fork" button**, on your fork's main page. No
+  local git needed. Works cleanly as long as nothing conflicts with your
+  own changes.
+- **If that button refuses (conflicts, usually in `risk_rules.json`)**,
+  resolve locally:
+  ```
+  git remote add upstream https://github.com/YizhiSong/FriesTrader.git
+  git fetch upstream
+  git merge upstream/main
+  ```
+  Resolve any conflicts in `risk_rules.json` by hand — your own account
+  details and thresholds should win, not upstream's placeholders.
 
 ## Running it
 
