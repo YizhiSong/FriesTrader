@@ -27,6 +27,7 @@ solve" below before pointing it at real money.
   connected via Robinhood's own MCP server.
 - [Claude Code](https://claude.com/claude-code), on a Pro subscription or
   higher.
+- A GitHub account, to host your own fork of this repo.
 
 ## How it works
 
@@ -100,19 +101,24 @@ persistent state, not local disk.
    created and populated in your Robinhood account, and review every
    other threshold — the defaults here are illustrative, not a
    recommendation.
-3. Fill in `wash_sale_avoidance.linked_accounts` with every Robinhood
+3. Create a scan via the Robinhood MCP's `create_scan` tool (relative
+   volume > 2.0x, market cap above your `min_market_cap_usd`), then paste
+   its ID into `universe.supplementary_scan_id`. Phase A calls this scan
+   every run to surface movers outside your watchlist — left as the
+   placeholder, that call fails every cycle.
+4. Fill in `wash_sale_avoidance.linked_accounts` with every Robinhood
    account number you personally control, not just this one — if this is
    genuinely the only account you trade in, a single-entry list (just
    this account's number) is enough. Leave `enabled: true` unless you
    specifically want buys never blocked on wash-sale grounds.
-4. Keep `execution.mode` set to `"dry_run"`. Leave it there for at least
+5. Keep `execution.mode` set to `"dry_run"`. Leave it there for at least
    the number of cycles set in `dry_run_min_cycles_before_live` — don't
    shortcut this.
-5. After each cycle, read `trade_log.jsonl` yourself. Look specifically
+6. After each cycle, read `trade_log.jsonl` yourself. Look specifically
    at rejected candidates and stop-loss triggers, not just the trades
    that "worked" — that's where you'll see if the reasoning step is
    actually sound or just getting lucky with an uptrend.
-6. Only flip `execution.mode` to `"live"` yourself, by hand, after you've
+7. Only flip `execution.mode` to `"live"` yourself, by hand, after you've
    reviewed enough dry-run cycles to trust the output. Do not let the
    agent flip it for you as a shortcut.
 
