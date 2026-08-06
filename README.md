@@ -211,15 +211,22 @@ End with a concise summary of what you checked, approved, rejected, and (if appl
 
 ```json
 {
-  "symbol": "XXXX",
   "date": "YYYY-MM-DD",
+  "timestamp": "HH:mm:ss",
+  "symbol": "XXXX",
+  "stage": "thesis",
   "thesis": "1-3 sentences on what changed and why it might matter",
   "conviction": "low | medium | high",
   "invalidation": "what would prove this thesis wrong",
   "direction": "long | avoid | exit_existing",
+  "risk_flags": ["..."],
+  "pct_below_52wk_high": 0.15,
   "sources": ["Outlet Name: https://...", "..."]
 }
 ```
+
+`risk_flags` and `pct_below_52wk_high` are only included when
+`direction` is `"long"` — omitted for `avoid`/`exit_existing`.
 
 - **No price targets** — no reliable basis for a specific number, and it
   invites false precision.
