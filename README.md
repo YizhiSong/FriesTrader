@@ -198,26 +198,10 @@ If the push is rejected (e.g. a race with another run), run 'git pull --rebase o
 End with a concise summary of what you checked, approved, rejected, and (if applicable) placed, and confirm the push succeeded (include the resulting commit hash).
 ```
 
-### Example cycle output
+### Example output
 
-`trade_log_recent.md` is regenerated every Phase B run — a plain-English
-recap for a quick mobile/GitHub read, no JSON-parsing required. A day
-looks something like this (symbols genericized, not a real account):
-
-> **2026-07-09**
->
-> **Loss limit**: OK — daily 0.0%, weekly -2.1%, within -5%/-10% limits.
->
-> **Held positions** (stop-loss / take-profit):
-> - EXAMPLE — stop 7.00% (vol-scaled), drawdown -2.3% — holding
->
-> **New-entry candidates considered**: OTHER, ANOTHER
-> - OTHER — approved: medium conviction, $60.00 (12% of account)
-> - ANOTHER — rejected: max_concurrent_positions already filled this cycle
->
-> **Orders placed**: OTHER — buy $60.00 (dry_run)
-
-## Thesis record shape (Phase A, Step 3)
+**Phase A — thesis record** (one JSON line per candidate in
+`pending_proposals.jsonl`):
 
 ```json
 {
@@ -235,6 +219,23 @@ looks something like this (symbols genericized, not a real account):
   invites false precision.
 - **No forecasting language treated as fact** — "this suggests...", not
   "this will...".
+
+**Phase B — `trade_log_recent.md`** (regenerated every Phase B run, a
+plain-English recap for a quick mobile/GitHub read, no JSON-parsing
+required — symbols genericized, not a real account):
+
+> **2026-07-09**
+>
+> **Loss limit**: OK — daily 0.0%, weekly -2.1%, within -5%/-10% limits.
+>
+> **Held positions** (stop-loss / take-profit):
+> - EXAMPLE — stop 7.00% (vol-scaled), drawdown -2.3% — holding
+>
+> **New-entry candidates considered**: OTHER, ANOTHER
+> - OTHER — approved: medium conviction, $60.00 (12% of account)
+> - ANOTHER — rejected: max_concurrent_positions already filled this cycle
+>
+> **Orders placed**: OTHER — buy $60.00 (dry_run)
 
 ## License
 
