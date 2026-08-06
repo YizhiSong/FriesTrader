@@ -220,6 +220,16 @@ End with a concise summary of what you checked, approved, rejected, and (if appl
 - **No forecasting language treated as fact** — "this suggests...", not
   "this will...".
 
+**Phase B — `trade_log.jsonl`** (the durable, append-only source of
+truth — one line per decision; `trade_log_recent.md` below is just its
+daily recap):
+
+```json
+{"date": "2026-07-10", "timestamp": "08:38:10", "symbol": "EXAMPLE", "stage": "risk_check", "proposed_position_pct": 0.18, "passed": true, "concurrent_positions_after": 2}
+{"date": "2026-07-09", "timestamp": "08:35:12", "symbol": "EXAMPLE", "stage": "order", "mode": "dry_run", "action": "buy", "dollar_amount": 50.00, "quote_ask": 84.20, "quantity": 0.594, "would_execute": true}
+{"date": "2026-07-10", "timestamp": "08:38:30", "symbol": "OTHER", "stage": "stop_loss", "entry_price": 100.00, "current_price": 92.50, "stop_pct": 0.07, "triggered": true, "action": "sell_full_position"}
+```
+
 **Phase B — `trade_log_recent.md`** (regenerated every Phase B run, a
 plain-English recap for a quick mobile/GitHub read, no JSON-parsing
 required — symbols genericized, not a real account):
