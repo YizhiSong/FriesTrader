@@ -20,6 +20,26 @@ This is a template/framework extracted from a real, live deployment.
 Adapt it, don't just run it blind — read "What this does and doesn't
 solve" below before pointing it at real money.
 
+## Why this is safer than it sounds
+
+"Fully autonomous" and "trading real money" together should make you
+nervous. Here's what actually stands between a thesis and an order:
+
+- **Every trade passes through mechanical rules the LLM cannot
+  override** — position sizing, stop-loss, take-profit, daily/weekly
+  loss limits, a wash-sale guard. A good story never cancels a
+  stop-loss.
+- **New deployments start in `dry_run` and stay there** for a minimum
+  number of cycles (`dry_run_min_cycles_before_live`) before a live
+  order is even possible, so you can watch it screen and reason before
+  it touches real money.
+- **Only you can flip `execution.mode` to `"live"`** — the agent is
+  explicitly barred from ever changing this itself, and refuses to
+  place live orders while `dry_run`.
+- **Every decision is logged, approved or rejected** — `trade_log.jsonl`
+  is append-only, so you can check whether the reasoning is actually
+  sound, not just trust it.
+
 ## Requirements
 
 - A [Robinhood](https://robinhood.com) account with
@@ -72,6 +92,28 @@ persistent state, not local disk.
   each phase follows.
 - `trade_log_template.jsonl` — the log line shapes; real logs accumulate
   in `trade_log.jsonl` in this same style.
+
+## See it in action
+
+This is what a real Phase B cycle actually produces (`trade_log_recent.md`,
+regenerated every run, symbols genericized):
+
+> **2026-07-09**
+>
+> **Loss limit**: OK — daily 0.0%, weekly -2.1%, within -5%/-10% limits.
+>
+> **Held positions** (stop-loss / take-profit):
+> - EXAMPLE — stop 7.00% (vol-scaled), drawdown -2.3% — holding
+>
+> **New-entry candidates considered**: OTHER, ANOTHER
+> - OTHER — approved: medium conviction, $60.00 (12% of account)
+> - ANOTHER — rejected: max_concurrent_positions already filled this cycle
+>
+> **Orders placed**: OTHER — buy $60.00 (dry_run)
+
+No JSON parsing required to see what it did and why. Full field-level
+examples (thesis records, raw `trade_log.jsonl` lines) are further down
+in Example output.
 
 ## What this does and doesn't solve
 
