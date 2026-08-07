@@ -252,7 +252,8 @@ afterward — that's outside this pipeline's visibility and control.
 **Loss-limit halt check (always runs, gates all new entries and top-ups):**
 Determine today's and this week's account P&L as % of account value
 (`get_pnl_trade_history`/`get_realized_pnl` and `get_portfolio`, vs
-`starting_capital_usd`). If daily or weekly drawdown meets/exceeds
+`starting_capital_usd` — compute this yourself). If daily or weekly
+drawdown meets/exceeds
 `loss_limits.daily_loss_limit_pct_of_account`/`weekly_loss_limit_pct_of_account`,
 set `entries_halted = true`. **If P&L can't be determined cleanly, fail
 safe: treat as breached.** Halts both new entries and top-ups (a top-up
