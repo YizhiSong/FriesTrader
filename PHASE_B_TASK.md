@@ -102,12 +102,29 @@ invalidates it, drop it as above.
 
 **Stop-loss check (always runs, independent of new candidates):** Pull
 current `get_equity_positions` and fresh `get_equity_quotes` for every
-open position; compute drawdown from average cost.
+open position.
+
+**Reference price (trailing once profit is locked in)**: if any
+`take_profit` tier has fired for this position's current holding
+period (same "since quantity last reached zero" scope as the
+take-profit check below), `stop_reference_basis = "trailing_high"` and
+`stop_reference_price` = the highest price reached since the holding
+period's entry date — the max of (a) every daily bar's `high_price`
+from the entry date (the buy that started this holding period from
+zero) through yesterday, via `get_equity_historicals`
+(interval=day, split-adjusted), and (b) today's fresh quote price.
+Otherwise (no tier has fired yet this holding period),
+`stop_reference_basis = "average_cost"` and `stop_reference_price` =
+average cost, as before. Either way, compute
+`drawdown_pct = (stop_reference_price - current_price) / stop_reference_price`.
+This only changes what the stop protects — it does not affect the
+take-profit gain calculation below, which always measures gain from
+average cost regardless of `stop_reference_basis`.
 
 If `risk_rules.json`'s `stop_loss.mode` is `"fixed"`, each symbol's
 `stop_pct` is just `stop_loss.hard_stop_pct`.
 
-If `mode` is `"volatility_scaled"` and drawdown is positive (skip
+If `mode` is `"volatility_scaled"` and `drawdown_pct` is positive (skip
 otherwise — a non-positive drawdown can never meet a positive
 `stop_pct`): call `get_equity_historicals` (interval=day, split-
 adjusted, last `stop_loss.volatility_lookback_trading_days` trading
@@ -119,15 +136,16 @@ or the historicals call fails, use `stop_loss.fallback_stop_pct` for
 that symbol this cycle and note why. Otherwise
 `stop_pct = clamp(volatility_stdev_multiplier x stdev, min_stop_pct, max_stop_pct)`.
 
-Either way: if drawdown meets or exceeds `stop_pct`, immediate
+Either way: if `drawdown_pct` meets or exceeds `stop_pct`, immediate
 full-position sell — no thesis review, never blocked by a loss-limit
-halt. Log `"stage": "stop_loss"` with `"stop_pct_used": <computed>`; if
-skipped for a non-positive drawdown, log `"stop_pct_used": null,
-"notes": "gain, stop not computed"` instead. When `mode` is
-`volatility_scaled` and computed, also include `"stdev_20d"`, or
-`"fallback_reason"` if the fallback applied. If triggered, treat as a
-Step 6 sell candidate. A good thesis never cancels a stop-loss — see
-`risk_rules.json`'s note.
+halt. Log `"stage": "stop_loss"` with `"stop_pct_used": <computed>`,
+`"stop_reference_basis"`, and `"stop_reference_price"` (plus, when
+trailing, `"trailing_high_since": <entry date>`); if skipped for a
+non-positive drawdown, log `"stop_pct_used": null, "notes": "gain,
+stop not computed"` instead. When `mode` is `volatility_scaled` and
+computed, also include `"stdev_20d"`, or `"fallback_reason"` if the
+fallback applied. If triggered, treat as a Step 6 sell candidate. A
+good thesis never cancels a stop-loss — see `risk_rules.json`'s note.
 
 **Take-profit check (always runs, independent of new candidates, tiered
 partial sells)**: Using the same pull as the stop-loss check (no need to
