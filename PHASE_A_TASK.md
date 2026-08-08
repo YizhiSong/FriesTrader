@@ -43,6 +43,11 @@ Pull current prices for the capped candidate list via `get_equity_quotes`
 (batched into one call), fresh every run. Use `last_trade_price` as
 `current_price` in Steps 2–3.
 
+`universe.max_market_cap_usd` is a ceiling, not just a floor — exclude if
+market cap exceeds it, regardless of how strong the candidate otherwise
+looks. Log as
+`"market cap $<X> exceeds universe.max_market_cap_usd ($<threshold>) — excluded per universe filters"`.
+
 `exclude`'s `"penny_stocks"` entry is mechanical, not a judgment call:
 exclude if current price < `universe.penny_stock_price_threshold_usd`,
 regardless of how the stock is otherwise trading. Log the reason as
