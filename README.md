@@ -29,6 +29,12 @@ nervous. Here's what actually stands between a thesis and an order:
   override** — position sizing, stop-loss, take-profit, daily/weekly
   loss limits, a wash-sale guard. A good story never cancels a
   stop-loss.
+- **The risk math itself runs as plain Python, not model arithmetic** —
+  position sizing, stop-loss/take-profit, candidate ranking, and the
+  loss-limit check are each a small stdlib-only script in `scripts/`
+  that Phase B calls and reads the JSON output from verbatim. Same
+  inputs always produce the same numbers; nothing here is the model
+  "doing math in its head" and hoping it checked out.
 - **New deployments start in `dry_run` and stay there** for a minimum
   number of cycles (`dry_run_min_cycles_before_live`) before a live
   order is even possible, so you can watch it screen and reason before
@@ -61,7 +67,8 @@ graph TD
     RH[Robinhood MCP] -- watchlist + scan / quotes / historicals --> A[Phase A: Screen & Thesis]
     A -- thesis per candidate --> P[pending_proposals.jsonl]
     P --> B[Phase B: Re-verify & Risk Enforcement]
-    RR[risk_rules.json] -- mechanical limits --> B
+    RR[risk_rules.json] -- thresholds --> S[scripts/*.py deterministic risk math]
+    S -- JSON results, read verbatim --> B
     RH -- fresh open price / positions --> B
     B -- dry_run or gated live order --> RH
     B -- every decision logged --> L[trade_log.jsonl]
@@ -88,6 +95,25 @@ persistent state, not local disk.
   Nothing in this system should be able to override these. Several
   fields need your own account details before this is usable — see
   First-time setup below.
+- `scripts/` — the deterministic risk-math engines Phase B runs instead
+  of hand-computing anything, each a standalone Python 3 script (stdlib
+  only, no dependencies) you can run and inspect on its own:
+  - `pnl_pct.py` — daily/weekly loss-limit % against `starting_capital_usd`,
+    and the entries-halted decision.
+  - `stop_loss.py` — the fixed or volatility-scaled stop_pct (clamped,
+    sample-stdev of daily returns), including the trailing-high reference
+    price once a take-profit tier has fired, and the trigger decision.
+  - `take_profit.py` — tiered partial-exit firing, cascading quantity
+    correctly when a single cycle's gain jumps past more than one
+    not-yet-fired tier at once.
+  - `rank_candidates.py` — the conviction / risk_flags / pct_below_52wk_high
+    priority sort new entries and top-ups compete on.
+  - `position_sizing.py` — position/top-up sizing and the concurrency/
+    cash-buffer checks, compounding running totals down the ranked list.
+
+  Each takes plain CLI args, prints one JSON object, and is meant to be
+  read from directly rather than re-derived — see `PHASE_B_TASK.md`
+  Step 5 for the exact call shape of each.
 - `PHASE_A_TASK.md` / `PHASE_B_TASK.md` — the full, self-contained spec
   each phase follows.
 - `trade_log_template.jsonl` — the log line shapes; real logs accumulate
