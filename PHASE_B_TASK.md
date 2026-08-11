@@ -153,27 +153,43 @@ never cancels a stop-loss — see `risk_rules.json`'s note.
 
 **Take-profit check (always runs, independent of new candidates, tiered
 partial sells)**: Using the same pull as the stop-loss check (no need to
-call again), compute each position's gain from average cost. For each
-`take_profit.tiers` entry, in ascending `gain_pct` order: check
-`trade_log.jsonl` for a `"stage": "take_profit"` entry for this symbol at
-that exact `gain_pct` tier, logged since the position's quantity last
-reached zero (a full exit) — if found, this tier already fired, skip it.
-Otherwise, if today's gain meets or exceeds that tier's `gain_pct`, fire
-it: sell `sell_fraction_of_position` of the position's **quantity as it
-stands at this moment** (i.e. after any earlier tier that already fired
-this same cycle has reduced it). No thesis review, never blocked by a
-loss-limit halt (it's an exit, not a new entry). Log
-`"stage": "take_profit", "tier_gain_pct": <the tier fired>, "sell_fraction": <fraction>, "quantity_before": <N>, "quantity_sold": <N>, "triggered": true, "action": "sell_partial_position"`
-and treat it as its own Step 6 sell candidate. **If a single cycle's gain
-has jumped past more than one not-yet-fired tier at once, fire all of
-them in ascending order within that cycle** — don't skip a lower tier
-just because a higher one was also reached. If no tier fires this cycle,
-log one line noting each tier's fired/not-fired status,
-`"triggered": false, "action": "hold_monitor"`. Once all three tiers have
-fired, the remaining quantity is held long indefinitely — only the
-stop-loss check above still applies to it. Tiers become eligible again
-only after the position is fully closed to zero shares and a new entry
-is later opened (a genuinely new holding period, not a top-up).
+call again — average cost, quantity, and fresh price as they stood at
+the start of Step 5, before any of this cycle's sells execute in Step
+6), check `trade_log.jsonl` for `"stage": "take_profit"` entries for
+this symbol at each tier's exact `gain_pct`, logged since the
+position's quantity last reached zero (a full exit) — collect the
+`gain_pct` values already fired this holding period.
+
+Run:
+`python3 scripts/take_profit.py --average-cost <avg cost> --current-price <fresh quote> --quantity <quantity> --tiers <risk_rules.json take_profit.tiers as "gain_pct:sell_fraction" pairs, e.g. "0.15:0.25,0.30:0.25,0.50:0.25"> [--already-fired <comma-separated gain_pct values already fired this holding period>]`
+and use its JSON output directly (`gain_pct`, `tiers_status`,
+`fired_this_cycle`, `triggered`, `action`) rather than recomputing any
+of it — the script already handles the ascending-order,
+cascading-quantity logic for **when a single cycle's gain has jumped
+past more than one not-yet-fired tier at once**.
+
+**If the script fails to run**, treat it like a stop-loss script
+failure: `entries_halted = true` for new entries/top-ups this cycle,
+exclude this position from any sell decision, and log `"stage":
+"take_profit"` with `"triggered": false, "action":
+"halt_entries_check_manually", "notes": "take_profit.py failed to run
+— verify this position's tiers manually before next cycle"`. Do not
+fall back to manual computation.
+
+If `fired_this_cycle` is non-empty: log one line per entry in it
+(already in ascending order) — `"stage": "take_profit",
+"tier_gain_pct"`, `"sell_fraction"`, `"quantity_before"`,
+`"quantity_sold"` straight from that entry, plus the script's
+top-level `"gain_pct"` and `"tiers_status"`, `"triggered": true,
+"action": "sell_partial_position"` — and treat each as its own Step 6
+sell candidate. No thesis review, never blocked by a loss-limit halt
+(it's an exit, not a new entry). If `fired_this_cycle` is empty, log
+one line with the script's `gain_pct` and `tiers_status`, `"triggered":
+false, "action": "hold_monitor"`. Once all three tiers have fired, the
+remaining quantity is held long indefinitely — only the stop-loss
+check above still applies to it. Tiers become eligible again only
+after the position is fully closed to zero shares and a new entry is
+later opened (a genuinely new holding period, not a top-up).
 
 **No same-cycle sell-then-buy**: if a symbol's stop-loss fired or any
 take-profit tier fired earlier in this same cycle, it is not eligible
