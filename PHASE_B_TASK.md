@@ -104,48 +104,52 @@ invalidates it, drop it as above.
 current `get_equity_positions` and fresh `get_equity_quotes` for every
 open position.
 
-**Reference price (trailing once profit is locked in)**: if any
-`take_profit` tier has fired for this position's current holding
-period (same "since quantity last reached zero" scope as the
-take-profit check below), `stop_reference_basis = "trailing_high"` and
-`stop_reference_price` = the highest price reached since the holding
-period's entry date — the max of (a) every daily bar's `high_price`
-from the entry date (the buy that started this holding period from
-zero) through yesterday, via `get_equity_historicals`
-(interval=day, split-adjusted), and (b) today's fresh quote price.
-Otherwise (no tier has fired yet this holding period),
-`stop_reference_basis = "average_cost"` and `stop_reference_price` =
-average cost, as before. Either way, compute
-`drawdown_pct = (stop_reference_price - current_price) / stop_reference_price`.
-This only changes what the stop protects — it does not affect the
-take-profit gain calculation below, which always measures gain from
-average cost regardless of `stop_reference_basis`.
+**Gather inputs, then let the script decide — do not hand-compute the
+reference price, drawdown, stdev, or clamp.** For each position:
+- Check `trade_log.jsonl` for whether any `take_profit` tier has fired
+  for this position's current holding period (same "since quantity
+  last reached zero" scope as the take-profit check below).
+- If a tier has fired, pull daily `high_price` bars via
+  `get_equity_historicals` (interval=day, split-adjusted) from the
+  holding period's entry date (the buy that started it from zero)
+  through yesterday, for `--daily-highs`.
+- If `risk_rules.json`'s `stop_loss.mode` is `"volatility_scaled"` and
+  the position is not currently showing a gain on average cost, pull
+  the last `stop_loss.volatility_lookback_trading_days` trading days
+  of daily closes via `get_equity_historicals` (interval=day,
+  split-adjusted; request ~30 calendar days back to cover
+  weekends/holidays, drop any `interpolated: true` bars), oldest
+  first through yesterday, for `--daily-closes`. Skip this pull on a
+  gain — the script itself also skips the computation in that case,
+  since a non-positive drawdown can never meet a positive `stop_pct`.
 
-If `risk_rules.json`'s `stop_loss.mode` is `"fixed"`, each symbol's
-`stop_pct` is just `stop_loss.hard_stop_pct`.
+Run:
+`python3 scripts/stop_loss.py --average-cost <avg cost> --current-price <fresh quote> --mode <stop_loss.mode> --hard-stop-pct <stop_loss.hard_stop_pct> --volatility-multiplier <stop_loss.volatility_stdev_multiplier> --min-stop-pct <stop_loss.min_stop_pct> --max-stop-pct <stop_loss.max_stop_pct> --fallback-stop-pct <stop_loss.fallback_stop_pct> --min-bars 10 [--daily-closes <comma-separated closes>] [--take-profit-tier-fired --daily-highs <comma-separated highs> --trailing-high-since <entry date>]`
+and use its JSON output directly (`stop_reference_basis`,
+`stop_reference_price`, `drawdown_pct`, `stop_pct_used`, `stdev_20d`
+when computed, `fallback_reason` when the fallback applied,
+`triggered`, `action`) rather than recomputing any of it. This only
+changes what the stop protects — it does not affect the take-profit
+gain calculation below, which always measures gain from average cost
+regardless of `stop_reference_basis`.
 
-If `mode` is `"volatility_scaled"` and `drawdown_pct` is positive (skip
-otherwise — a non-positive drawdown can never meet a positive
-`stop_pct`): call `get_equity_historicals` (interval=day, split-
-adjusted, last `stop_loss.volatility_lookback_trading_days` trading
-days — request ~30 calendar days back to cover weekends/holidays, then
-use however many trading-day bars come back), drop any
-`interpolated: true` bars, and compute the standard deviation of daily
-close-to-close % returns. If fewer than 10 usable bars are available,
-or the historicals call fails, use `stop_loss.fallback_stop_pct` for
-that symbol this cycle and note why. Otherwise
-`stop_pct = clamp(volatility_stdev_multiplier x stdev, min_stop_pct, max_stop_pct)`.
+**If the script fails to run**, do not guess a result: treat this
+position as if a loss-limit breach applied this cycle (`entries_halted
+= true` for new entries/top-ups, this position itself excluded from
+any sell decision) and log `"stage": "stop_loss"` with
+`"stop_pct_used": null, "triggered": false, "action":
+"halt_entries_check_manually", "notes": "stop_loss.py failed to run —
+verify this position's stop manually before next cycle"`. Do not fall
+back to manual computation.
 
-Either way: if `drawdown_pct` meets or exceeds `stop_pct`, immediate
-full-position sell — no thesis review, never blocked by a loss-limit
-halt. Log `"stage": "stop_loss"` with `"stop_pct_used": <computed>`,
-`"stop_reference_basis"`, and `"stop_reference_price"` (plus, when
-trailing, `"trailing_high_since": <entry date>`); if skipped for a
-non-positive drawdown, log `"stop_pct_used": null, "notes": "gain,
-stop not computed"` instead. When `mode` is `volatility_scaled` and
-computed, also include `"stdev_20d"`, or `"fallback_reason"` if the
-fallback applied. If triggered, treat as a Step 6 sell candidate. A
-good thesis never cancels a stop-loss — see `risk_rules.json`'s note.
+If `triggered` is true: immediate full-position sell — no thesis
+review, never blocked by a loss-limit halt. Log `"stage": "stop_loss"`
+with the script's `stop_pct_used`, `stop_reference_basis`, and
+`stop_reference_price` (plus, when trailing, `trailing_high_since`);
+when `stop_pct_used` is null, log the script's own `"notes": "gain,
+stop not computed"` as-is. Include `stdev_20d`/`fallback_reason` when
+present. If triggered, treat as a Step 6 sell candidate. A good thesis
+never cancels a stop-loss — see `risk_rules.json`'s note.
 
 **Take-profit check (always runs, independent of new candidates, tiered
 partial sells)**: Using the same pull as the stop-loss check (no need to
