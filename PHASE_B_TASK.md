@@ -268,14 +268,16 @@ still become a wash sale later if a linked account buys the same symbol
 afterward — that's outside this pipeline's visibility and control.
 
 **Loss-limit halt check (always runs, gates all new entries and top-ups):**
-Determine today's and this week's account P&L as % of account value
-(`get_pnl_trade_history`/`get_realized_pnl` and `get_portfolio`, vs
-`starting_capital_usd` — compute this yourself). If daily or weekly
-drawdown meets/exceeds
-`loss_limits.daily_loss_limit_pct_of_account`/`weekly_loss_limit_pct_of_account`,
-set `entries_halted = true`. **If P&L can't be determined cleanly, fail
-safe: treat as breached.** Halts both new entries and top-ups (a top-up
-still spends cash/exposure, even though it skips the concurrency check).
+Call `get_realized_pnl` span=day and span=week (asset_classes=[equity])
+for today's and this week's realized `total_returns` in dollars (0 if no
+trades). Do **not** hand-compute the percentages — run
+`python3 scripts/pnl_pct.py --daily-realized-usd <day total_returns> --weekly-realized-usd <week total_returns> --starting-capital-usd <risk_rules.json starting_capital_usd> --daily-limit-pct <loss_limits.daily_loss_limit_pct_of_account> --weekly-limit-pct <loss_limits.weekly_loss_limit_pct_of_account>`
+and use its JSON output (`daily_pnl_pct`, `weekly_pnl_pct`,
+`entries_halted`, `halt_reason`) directly. **If the script fails to run
+or `get_realized_pnl` can't be determined cleanly, fail safe: treat as
+breached** (`entries_halted = true`) rather than falling back to manual
+computation. Halts both new entries and top-ups (a top-up still spends
+cash/exposure, even though it skips the concurrency check).
 Log as `"stage": "loss_limit_check"`.
 
 **Candidate priority order — new entries and top-ups compete equally
