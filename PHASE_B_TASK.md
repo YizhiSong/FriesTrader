@@ -303,50 +303,47 @@ Log as `"stage": "loss_limit_check"`.
 **Candidate priority order — new entries and top-ups compete equally
 (decide before any per-candidate check):**
 Merge **new** and **held** groups from Step 4 (excluding new-group
-candidates already rejected by Step 4's capacity short-circuit) into one
-list, sorted:
-1. **Conviction tier first**: `high` before `medium` before `low`.
-2. **Within a tier**, break ties by `risk_flags` count **ascending**
-   (fewer disclosed risk flags — active litigation, dilution, insolvency
-   concern, leadership turnover — is prioritized; missing field = treated
-   as worst case, sorted last).
-3. **Still tied**, break by `pct_below_52wk_high` **descending** (further
-   below its own 52-week high is prioritized — a disclosed "room in the
-   setup" proxy, not a fair-value calc; missing field = lowest priority
-   in its tier).
-Process all of them — new entries and top-ups together — strictly in
-this merged order; a high-conviction top-up can be approved ahead of a
-lower-conviction new entry and vice versa. **Do not hand-compute
-dollar amounts, thresholds, or the running cash/concurrency totals —
-gather the inputs below and let the script decide.**
+candidates already rejected by Step 4's capacity short-circuit) into
+one list. **Do not hand-sort or hand-compute any of this — gather the
+inputs below and let the scripts decide.**
+
+**Gather, for every candidate in the merged list:** `symbol`,
+`conviction`, `risk_flags` (omit the key entirely if the thesis
+disclosed none — an omitted key and an empty array mean different
+things to the ranking script below), `pct_below_52wk_high` (omit if
+not available), `group` (`"new"` or `"held"`), and — for **held**
+candidates only — `current_position_value` (quantity from
+`get_equity_positions` × fresh price from `get_equity_quotes`). Also
+gather live `total_value` and `cash` from `get_portfolio` (`cash` is
+the starting `cash_remaining`), and `concurrent_positions_start` (the
+live open position count per Step 4's `open_slots` calc, before this
+cycle's approvals).
+
+Rank the candidates, then size them — pipe the candidate list (a JSON
+array) through both scripts in sequence (directly chainable):
+`python3 scripts/rank_candidates.py | python3 scripts/position_sizing.py --total-value <total_value> --cash-start <cash> --concurrent-positions-start <concurrent_positions_start> [--entries-halted] --max-position-pct <position_sizing.max_position_pct_of_account> --max-concurrent-positions <position_sizing.max_concurrent_positions> --min-cash-buffer-pct <position_sizing.min_cash_buffer_pct> --min-top-up-usd <position_sizing.min_top_up_usd> --min-top-up-pct-of-target <position_sizing.min_top_up_pct_of_target> --conviction-pct "high:0.20,medium:0.12,low:0.06"`
+`rank_candidates.py` sorts by conviction tier first (`high` before
+`medium` before `low`), then `risk_flags` count ascending within a
+tier (a missing `risk_flags` field sorts last, treated as worst
+case), then `pct_below_52wk_high` descending (a missing field sorts
+last in its tier) — a high-conviction top-up can end up ranked ahead
+of a lower-conviction new entry and vice versa.
+`position_sizing.py` then processes strictly in that ranked order,
+compounding the running cash/concurrency totals as each candidate is
+approved. Pass `--entries-halted` whenever the loss-limit check above
+(or a stop-loss/take-profit script failure) halted entries this cycle
+— the sizing script then rejects every candidate uniformly with the
+standard halt reason and leaves the totals unchanged.
 
 **Log `risk_flags` and `pct_below_52wk_high` as structured fields on
 every risk_check entry from this sort — winners and rejections alike**
 (the only place this survives, since `pending_proposals.jsonl` is
 overwritten daily).
 
-**Gather, for every candidate in the merged order:** `group` (`"new"`
-or `"held"`), `conviction`, and — for **held** candidates only —
-`current_position_value` (quantity from `get_equity_positions` ×
-fresh price from `get_equity_quotes`). Also gather live `total_value`
-and `cash` from `get_portfolio` (`cash` is the starting
-`cash_remaining`), and `concurrent_positions_start` (the live open
-position count per Step 4's `open_slots` calc, before this cycle's
-approvals).
-
-Run, piping the candidate list (a JSON array, in this priority order,
-each item `{"symbol": ..., "group": ..., "conviction": ...}` plus
-`current_position_value` for **held** items) to stdin:
-`python3 scripts/position_sizing.py --total-value <total_value> --cash-start <cash> --concurrent-positions-start <concurrent_positions_start> [--entries-halted] --max-position-pct <position_sizing.max_position_pct_of_account> --max-concurrent-positions <position_sizing.max_concurrent_positions> --min-cash-buffer-pct <position_sizing.min_cash_buffer_pct> --min-top-up-usd <position_sizing.min_top_up_usd> --min-top-up-pct-of-target <position_sizing.min_top_up_pct_of_target> --conviction-pct "high:0.20,medium:0.12,low:0.06"`
-Pass `--entries-halted` whenever the loss-limit check above (or a
-stop-loss/take-profit script failure) halted entries this cycle — the
-script then rejects every candidate uniformly with the standard halt
-reason and leaves the totals unchanged.
-
-Use the script's JSON output directly — its `results` array (one entry
-per candidate, same order, each carrying `passed`, and depending on
-outcome: `reason`, `position_action: "top_up"`, `dollar_amount`,
-`current_position_value`, `target_size`, `headroom`,
+Use the final script's JSON output directly — its `results` array (one
+entry per candidate, in ranked order, each carrying `passed`, and
+depending on outcome: `reason`, `position_action: "top_up"`,
+`dollar_amount`, `current_position_value`, `target_size`, `headroom`,
 `concurrent_positions_after`, `cash_remaining_after`,
 `cash_buffer_after_pct`) plus `cash_remaining_final` and
 `concurrent_positions_after_final` — rather than recomputing any of
@@ -355,11 +352,11 @@ carries the script's own `"concurrent_positions_after (N) exceeds
 max_concurrent_positions (M) — cap filled by higher-priority
 candidates this cycle"` wording, to show it's scarcity, not quality.
 
-**If the script fails to run**, do not guess a result: reject every
+**If either script fails to run**, do not guess a result: reject every
 still-pending candidate this cycle — log `"stage": "risk_check",
-"passed": false, "reason": "position_sizing.py failed to run — no
-orders attempted this cycle, verify manually"` for each — rather than
-falling back to manual computation.
+"passed": false, "reason": "rank_candidates.py/position_sizing.py
+failed to run — no orders attempted this cycle, verify manually"` for
+each — rather than falling back to manual computation.
 
 For each candidate, log `"stage": "risk_check"` with that candidate's
 `results` entry fields verbatim.
