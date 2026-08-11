@@ -6,15 +6,16 @@
 An AI trading agent built to run cheap and fully on its own, trading real
 orders on [Robinhood](https://robinhood.com) using its
 [Agentic Trading MCP server](https://robinhood.com/us/en/agentic-trading/).
-Once set up, it runs unattended on its own schedule every weekday, no
-manual triggering needed. Two short scheduled Claude Code sessions a day
-screen stocks, write out their reasoning, and (only under a narrow,
-explicit gate) place real trades, without a team of specialized
-sub-agents burning tokens on every decision. The actual safety mechanism
-is mechanical, auditable risk rules, not the model's judgment, and
-because it's just two lean sessions instead of a multi-agent pipeline, it
-runs comfortably on a Claude Pro subscription (as low as $200/year on the
-annual plan), no Claude Max or metered API spend required.
+Once set up, it's able to run unattended on its own schedule every
+weekday, no manual triggering needed, and the actual safety mechanism is
+mechanical, auditable risk rules, not the model's judgment. Two short
+scheduled Claude Code sessions a day screen stocks, write out their
+reasoning, and (only under a narrow, explicit gate) place real trades,
+without a team of specialized sub-agents burning tokens on every
+decision. Because it's just two lean sessions instead of a multi-agent
+pipeline, it runs comfortably on a Claude Pro subscription (as low as
+$200/year on the annual plan), no Claude Max or metered API spend
+required.
 
 This is a template/framework extracted from a real, live deployment.
 Adapt it, don't just run it blind — read "What this does and doesn't
@@ -26,15 +27,11 @@ solve" below before pointing it at real money.
 nervous. Here's what actually stands between a thesis and an order:
 
 - **Every trade passes through mechanical rules the LLM cannot
-  override** — position sizing, stop-loss, take-profit, daily/weekly
-  loss limits, a wash-sale guard. A good story never cancels a
-  stop-loss.
-- **The risk math itself runs as plain Python, not model arithmetic** —
-  position sizing, stop-loss/take-profit, candidate ranking, and the
-  loss-limit check are each a small stdlib-only script in `scripts/`
-  that Phase B calls and reads the JSON output from verbatim. Same
-  inputs always produce the same numbers; nothing here is the model
-  "doing math in its head" and hoping it checked out.
+  override** — position sizing, stop-loss, take-profit, loss limits, a
+  wash-sale guard, each computed by a small stdlib-only Python script in
+  `scripts/` rather than the model doing arithmetic in prose. Same
+  inputs always produce the same numbers, and a good story never cancels
+  a stop-loss.
 - **New deployments start in `dry_run` and stay there** for a minimum
   number of cycles (`dry_run_min_cycles_before_live`) before a live
   order is even possible, so you can watch it screen and reason before
@@ -328,31 +325,14 @@ End with a concise summary of what you checked, approved, rejected, and (if appl
   "this will...".
 
 **Phase B — `trade_log.jsonl`** (the durable, append-only source of
-truth — one line per decision; `trade_log_recent.md` below is just its
-daily recap):
+truth — one line per decision; `trade_log_recent.md`, shown under "See
+it in action" above, is just its daily recap):
 
 ```json
 {"date": "2026-07-10", "timestamp": "08:38:10", "symbol": "EXAMPLE", "stage": "risk_check", "passed": true, "conviction": "medium", "risk_flags": [], "pct_below_52wk_high": 0.08, "proposal_date": "2026-07-09", "position_size_usd": 60.00, "concurrent_positions_after": 2, "cash_remaining_after": 340.00, "cash_buffer_after_pct": 0.34}
 {"date": "2026-07-09", "timestamp": "08:35:12", "symbol": "EXAMPLE", "stage": "order", "mode": "dry_run", "action": "buy", "dollar_amount": 60.00, "quote_ask": 84.20, "quantity": 0.712, "would_execute": true, "review_alerts": "none (order_checks empty)", "proposal_date": "2026-07-09"}
 {"date": "2026-07-10", "timestamp": "08:38:30", "symbol": "OTHER", "stage": "stop_loss", "entry_price": 100.00, "current_price": 92.50, "stop_pct_used": 0.075, "stdev_20d": 0.030, "drawdown_pct": 0.075, "triggered": true, "action": "sell_full_position"}
 ```
-
-**Phase B — `trade_log_recent.md`** (regenerated every Phase B run, a
-plain-English recap for a quick mobile/GitHub read, no JSON-parsing
-required — symbols genericized, not a real account):
-
-> **2026-07-09**
->
-> **Loss limit**: OK — daily 0.0%, weekly -2.1%, within -5%/-10% limits.
->
-> **Held positions** (stop-loss / take-profit):
-> - EXAMPLE — stop 7.00% (vol-scaled), drawdown -2.3% — holding
->
-> **New-entry candidates considered**: OTHER, ANOTHER
-> - OTHER — approved: medium conviction, $60.00 (12% of account)
-> - ANOTHER — rejected: max_concurrent_positions already filled this cycle
->
-> **Orders placed**: OTHER — buy $60.00 (dry_run)
 
 ## License
 
