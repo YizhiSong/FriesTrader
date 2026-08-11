@@ -314,64 +314,55 @@ list, sorted:
    below its own 52-week high is prioritized — a disclosed "room in the
    setup" proxy, not a fair-value calc; missing field = lowest priority
    in its tier).
-Process all of them — new entries and top-ups together — strictly in this
-merged order; a high-conviction top-up can be approved ahead of a
-lower-conviction new entry and vice versa. Track two running totals:
-- `cash_remaining`, decremented by every approved candidate (both groups
-  spend cash).
-- `concurrent_positions_after`, incremented **only** by approved
-  **new**-group candidates.
+Process all of them — new entries and top-ups together — strictly in
+this merged order; a high-conviction top-up can be approved ahead of a
+lower-conviction new entry and vice versa. **Do not hand-compute
+dollar amounts, thresholds, or the running cash/concurrency totals —
+gather the inputs below and let the script decide.**
+
 **Log `risk_flags` and `pct_below_52wk_high` as structured fields on
 every risk_check entry from this sort — winners and rejections alike**
 (the only place this survives, since `pending_proposals.jsonl` is
-overwritten daily). A
-**new**-group candidate rejected purely for lack of slots: log
-`"concurrent_positions_after (N) exceeds max_concurrent_positions (M) — cap filled by higher-priority candidates this cycle"`
-to show it's scarcity, not quality.
+overwritten daily).
 
-**Per-candidate checks**, for each candidate in the merged priority order:
+**Gather, for every candidate in the merged order:** `group` (`"new"`
+or `"held"`), `conviction`, and — for **held** candidates only —
+`current_position_value` (quantity from `get_equity_positions` ×
+fresh price from `get_equity_quotes`). Also gather live `total_value`
+and `cash` from `get_portfolio` (`cash` is the starting
+`cash_remaining`), and `concurrent_positions_start` (the live open
+position count per Step 4's `open_slots` calc, before this cycle's
+approvals).
 
-*If it's a **new**-group candidate:*
-1. Position size from `conviction`, fixed table (not runtime judgment):
-   - `high` → `max_position_pct_of_account` (currently 0.20)
-   - `medium` → 0.12
-   - `low` → 0.06
-   Dollar amount = percentage × live `total_value`, rounded to 2 decimals.
-2. If `entries_halted`, reject: `"stage": "risk_check", "passed": false, "reason": "loss limit halt — daily/weekly drawdown breached"`. No high-conviction exception.
-3. Check, using running totals:
-   - position size ≤ `max_position_pct_of_account`
-   - `concurrent_positions_after` (running count + 1) ≤ `max_concurrent_positions`
-   - `cash_remaining` after trade ≥ `min_cash_buffer_pct` × `total_value`
-4. Pass → increment both totals, log
-   `"stage": "risk_check", "passed": true"` with computed numbers. Fail →
-   reject, log `"stage": "risk_check", "passed": false"` with the reason;
-   totals unchanged.
+Run, piping the candidate list (a JSON array, in this priority order,
+each item `{"symbol": ..., "group": ..., "conviction": ...}` plus
+`current_position_value` for **held** items) to stdin:
+`python3 scripts/position_sizing.py --total-value <total_value> --cash-start <cash> --concurrent-positions-start <concurrent_positions_start> [--entries-halted] --max-position-pct <position_sizing.max_position_pct_of_account> --max-concurrent-positions <position_sizing.max_concurrent_positions> --min-cash-buffer-pct <position_sizing.min_cash_buffer_pct> --min-top-up-usd <position_sizing.min_top_up_usd> --min-top-up-pct-of-target <position_sizing.min_top_up_pct_of_target> --conviction-pct "high:0.20,medium:0.12,low:0.06"`
+Pass `--entries-halted` whenever the loss-limit check above (or a
+stop-loss/take-profit script failure) halted entries this cycle — the
+script then rejects every candidate uniformly with the standard halt
+reason and leaves the totals unchanged.
 
-*If it's a **held**-group candidate (a possible top-up):*
-1. If `entries_halted`, reject: `"stage": "risk_check", "passed": false, "position_action": "top_up", "reason": "loss limit halt — daily/weekly drawdown breached"`.
-2. `target_size` = same conviction-tier % × live `total_value`
-   (`high`→0.20, `medium`→0.12, `low`→0.06) — the target size overall, not
-   an add-on amount.
-3. Current market value = quantity (`get_equity_positions`) × fresh price
-   (`get_equity_quotes`).
-4. `headroom = target_size - current_position_value`. **If `headroom <= 0`**,
-   reject — `"stage": "risk_check", "passed": false, "position_action": "top_up", "reason": "already at or above target size for its conviction tier — no top-up"`.
-   An unchanged thesis alone doesn't justify repeated buying.
-5. **If `headroom > 0`**: top-up amount =
-   `min(headroom, max_position_pct_of_account × total_value − current_position_value)`
-   — the second term is a hard ceiling on total exposure regardless of
-   conviction. No concurrency check.
-6. **Minimum-meaningful-top-up check**: compute
-   `min_top_up_threshold = max($1.00 broker minimum, min_top_up_usd, min_top_up_pct_of_target × target_size)`.
-   If the buy amount from step 5 is below this threshold, reject without
-   calling `review_equity_order` — log
-   `"stage": "risk_check", "passed": false, "position_action": "top_up", "reason": "top-up amount $<X> is below the min top-up threshold $<threshold> (broker $1.00 minimum vs. min_top_up_usd $<Y> vs. min_top_up_pct_of_target <Z%> of target $<target_size>, whichever is highest) — no order attempted"`.
-7. Check `cash_remaining` after trade ≥ `min_cash_buffer_pct` ×
-   `total_value` (shared running total). Fail → reject and log why; total
-   unchanged.
-8. Pass → decrement `cash_remaining`, log
-   `"stage": "risk_check", "passed": true, "position_action": "top_up"`
-   with current value, target, headroom, buy amount.
+Use the script's JSON output directly — its `results` array (one entry
+per candidate, same order, each carrying `passed`, and depending on
+outcome: `reason`, `position_action: "top_up"`, `dollar_amount`,
+`current_position_value`, `target_size`, `headroom`,
+`concurrent_positions_after`, `cash_remaining_after`,
+`cash_buffer_after_pct`) plus `cash_remaining_final` and
+`concurrent_positions_after_final` — rather than recomputing any of
+it. A **new**-group candidate rejected purely for lack of slots
+carries the script's own `"concurrent_positions_after (N) exceeds
+max_concurrent_positions (M) — cap filled by higher-priority
+candidates this cycle"` wording, to show it's scarcity, not quality.
+
+**If the script fails to run**, do not guess a result: reject every
+still-pending candidate this cycle — log `"stage": "risk_check",
+"passed": false, "reason": "position_sizing.py failed to run — no
+orders attempted this cycle, verify manually"` for each — rather than
+falling back to manual computation.
+
+For each candidate, log `"stage": "risk_check"` with that candidate's
+`results` entry fields verbatim.
 
 Every `risk_check` entry must include `proposal_date` (copied from the
 candidate's `"date"` in `pending_proposals.jsonl` — Step 0's idempotency
