@@ -3,6 +3,7 @@
 
   "account_number": "YOUR_ACCOUNT_NUMBER_HERE",
   "starting_capital_usd": 500.00,
+  "starting_capital_usd_note": "Net deposits minus withdrawals, not live total_value -- excludes trading P&L so the loss-limit base doesn't drift with performance. Human updates by hand after each deposit/withdrawal.",
 
   "position_sizing": {
     "max_position_pct_of_account": 0.20,
