@@ -132,17 +132,29 @@ cycle — log
 It remains a normal candidate next cycle, re-screened fresh (no
 carryover priority).
 
+**Every qualifying candidate's search — new entry or held position —**
+must explicitly check, in addition to whatever catalyst-specific query
+satisfied Step 2:
+1. Whether any active lawsuit/regulatory investigation naming the
+   company has a scheduled ruling, hearing, trial date, or compliance
+   deadline in the next ~90 days (the `active_litigation` risk_flags
+   criterion below).
+2. Whether the company has a confirmed accounting restatement,
+   for-cause auditor dismissal/resignation, or an indictment/plea
+   involving a current or former executive or employee tied to company
+   operations, disclosed within the last 3 years (the
+   `governance_history` risk_flags criterion below).
+Don't rely on either surfacing incidentally from a catalyst-only search
+— a stock can carry an open investigation or a past scandal
+indefinitely without any day's catalyst search happening to mention it.
+
 **Exception — held positions always get a fresh thesis**, signal or not.
 Run one targeted news search per held position (separate budget from
 `cadence.news_search_budget_per_cycle`, bounded by
 `max_concurrent_positions`, same pattern as Phase B's Monday weekend-gap
 searches) and produce a thesis every run — this is what makes
 `exit_existing` reachable, since a slow deterioration with no sharp
-signal would otherwise go unnoticed. This search must also cover
-whether any active lawsuit/regulatory investigation naming the company
-has a scheduled ruling, hearing, trial date, or compliance deadline in
-the next ~90 days (the `active_litigation` risk_flags criterion below)
-— don't rely on it surfacing incidentally from a catalyst-only query.
+signal would otherwise go unnoticed.
 
 ## Step 3 — Synthesize thesis
 
@@ -205,6 +217,16 @@ run's sourced research already found (no extra searches):
   next step doesn't qualify on its own (most large companies have one
   of these at any given time) — mention it in the thesis narrative if
   relevant, but don't flag it.
+- `"governance_history"` — a confirmed accounting restatement, for-cause
+  auditor dismissal/resignation, or an indictment/plea involving a
+  current or former executive or employee tied to company operations,
+  disclosed within the last 3 years. Must be a completed, sourced event
+  (company filing, regulatory action, or named-source reporting) — a
+  short-seller report alone, a rumor, or an investigation with no
+  confirmed finding yet doesn't qualify on its own (that's
+  `active_litigation`'s territory if it has a scheduled next step, or
+  just thesis-narrative color otherwise). The point is a track record of
+  already-happened failures, not a prediction about an unresolved one.
 - `"dilution_risk"` — a completed or pending equity/convertible raise,
   share offering, or ATM program disclosed in the last ~90 days.
 - `"insolvency_or_liquidity_concern"` — bankruptcy rumor, going-concern
