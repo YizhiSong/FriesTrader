@@ -53,7 +53,9 @@ nervous. Here's what actually stands between a thesis and an order:
   connected via Robinhood's own MCP server.
 - [Claude Code](https://claude.com/claude-code), on a Pro subscription or
   higher.
-- A GitHub account, to host your own fork of this repo.
+- A GitHub account, to host your own fork of this repo — only needed
+  for the cloud-hosted deployment (see "How it works" below for the
+  cloud vs. local tradeoff).
 
 ## How it works
 
@@ -88,7 +90,9 @@ graph TD
 Both are designed to run as cloud-hosted scheduled agent sessions,
 independent of any local machine — each run clones this repo fresh and
 commits/pushes its results back to `main`, so the repo itself is the
-persistent state, not local disk.
+persistent state, not local disk. (Running locally instead works too,
+but only fires while your machine is on and available at each
+scheduled time.)
 
 - `risk_rules.json` — the hard, mechanical limits (position sizing, stop-
   loss, loss limits, universe filters, execution mode, wash-sale guard).
@@ -160,11 +164,16 @@ in Example output.
 
 ## First-time setup
 
-1. **Fork this repo** (or otherwise create your own copy) to your own
-   GitHub account — make it private, since it'll accumulate real trading
-   data (`trade_log.jsonl`, proposals) once running. Phase A/B commit and
-   push results back to `main`, so you need a repo you actually control,
-   not this one.
+1. **If running as cloud-hosted scheduled sessions**: fork this repo (or
+   otherwise create your own copy) to your own GitHub account — make it
+   private, since it'll accumulate real trading data (`trade_log.jsonl`,
+   proposals) once running. Phase A/B commit and push results back to
+   `main` in that setup, so you need a repo you actually control, not
+   this one.
+   **If running locally instead**, skip this — just clone or download
+   the repo; state lives on local disk, nothing gets pushed anywhere,
+   but your machine needs to be on and available at each scheduled run
+   time.
 2. Robinhood's [Agentic Trading](https://robinhood.com/us/en/agentic-trading/)
    requires a separate, dedicated account — distinct from your regular
    investing account, and restricted to only the funds you put in it. See
