@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# Part of FriesTrader (https://github.com/YizhiSong/FriesTrader)
+# Copyright (c) 2026 Yizhi Song, MIT License -- see LICENSE
 """Sort Step 5's merged new+held candidate list into priority order, per
 risk_rules.json/PHASE_B_TASK.md's "Candidate priority order":
   1. conviction tier: high before medium before low

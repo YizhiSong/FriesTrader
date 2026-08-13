@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# Part of FriesTrader (https://github.com/YizhiSong/FriesTrader)
+# Copyright (c) 2026 Yizhi Song, MIT License -- see LICENSE
 """Compute daily/weekly P&L % against starting_capital_usd and the loss-limit halt decision.
 
 Per risk_rules.json/PHASE_B_TASK.md spec: daily_pnl_pct and weekly_pnl_pct

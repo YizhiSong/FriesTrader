@@ -21,6 +21,9 @@ This is a template/framework extracted from a real, live deployment.
 Adapt it, don't just run it blind — read "What this does and doesn't
 solve" below before pointing it at real money.
 
+> If you build on this, a link back to this repo (or a star) is always
+> appreciated.
+
 ## Why this is safer than it sounds
 
 "Fully autonomous" and "trading real money" together should make you

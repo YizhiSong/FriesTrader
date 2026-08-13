@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# Part of FriesTrader (https://github.com/YizhiSong/FriesTrader)
+# Copyright (c) 2026 Yizhi Song, MIT License -- see LICENSE
 """Run Step 5's per-candidate position-sizing/risk_check math over an
 already priority-sorted candidate list, per risk_rules.json/
 PHASE_B_TASK.md.

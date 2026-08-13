@@ -1,5 +1,7 @@
 # Phase B — Re-verify, Risk Enforcement, Order Review/Execution, and Logging (Automated Daily Task)
 
+_Part of [FriesTrader](https://github.com/YizhiSong/FriesTrader), Copyright (c) 2026 Yizhi Song, MIT License._
+
 Automated second half of this pipeline (see `README.md`), run every
 weekday 8:35am Central (5 min after 9:30am ET open) as a cloud routine.
 Performs **Steps 4–7**, consuming candidates from Phase A's

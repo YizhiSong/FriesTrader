@@ -1,5 +1,7 @@
 # Phase A — Screening & Thesis Only (Automated Daily Task)
 
+_Part of [FriesTrader](https://github.com/YizhiSong/FriesTrader), Copyright (c) 2026 Yizhi Song, MIT License._
+
 Automated subset of this pipeline (see `README.md`), run every weekday
 4:30pm Central as a cloud routine.
 

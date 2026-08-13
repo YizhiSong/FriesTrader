@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# Part of FriesTrader (https://github.com/YizhiSong/FriesTrader)
+# Copyright (c) 2026 Yizhi Song, MIT License -- see LICENSE
 """Compute the stop-loss reference price, stop_pct, and trigger decision
 for one position, per risk_rules.json/PHASE_B_TASK.md Step 5.
 
