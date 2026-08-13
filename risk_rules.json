@@ -49,14 +49,22 @@
   "universe": {
     "watchlist_name": "YOUR_WATCHLIST_NAME_HERE",
     "watchlist_max_candidates": 25,
+    "supplementary_scan_id": "YOUR_SCAN_ID_HERE",
+    "supplementary_scan_max_candidates": 5,
+    "supplementary_scan_note": "Robinhood scan -- relative volume > 2.0x (30d) and market cap > min_market_cap_usd, matching signal_thresholds.volume_spike_multiple and this same block's own min_market_cap_usd rather than separate numbers. Additive to watchlist_max_candidates, not shared with it -- the watchlist's own slots are never crowded out by scan results. Create your own scan (relative volume + market cap filters) via the Robinhood MCP's create_scan tool and paste its scan_id here. Scan config has no upper market-cap bound; max_market_cap_usd still applies to its results via Phase A's post-merge filtering.",
+
     "min_avg_daily_volume": 1000000,
     "min_market_cap_usd": 2000000000,
     "max_market_cap_usd": 50000000000,
+
+    "penny_stock_filter_enabled": true,
     "penny_stock_price_threshold_usd": 5.00,
-    "exclude": ["penny_stocks", "leveraged_etfs", "inverse_etfs"],
-    "supplementary_scan_id": "YOUR_SCAN_ID_HERE",
-    "supplementary_scan_max_candidates": 5,
-    "supplementary_scan_note": "Robinhood scan -- relative volume > 2.0x (30d) and market cap > min_market_cap_usd, matching signal_thresholds.volume_spike_multiple and this same block's own min_market_cap_usd rather than separate numbers. Additive to watchlist_max_candidates, not shared with it -- the watchlist's own slots are never crowded out by scan results. Create your own scan (relative volume + market cap filters) via the Robinhood MCP's create_scan tool and paste its scan_id here. Scan config has no upper market-cap bound; max_market_cap_usd still applies to its results via Phase A's post-merge filtering."
+
+    "leveraged_etf_filter_enabled": true,
+    "inverse_etf_filter_enabled": true,
+
+    "trend_filter_enabled": true,
+    "trend_filter_lookback_trading_days": 200
   },
 
   "execution": {

@@ -43,23 +43,44 @@ Pull current prices for the capped candidate list via `get_equity_quotes`
 (batched into one call), fresh every run. Use `last_trade_price` as
 `current_price` in Steps 2–3.
 
+Pull price history per candidate via `get_equity_historicals`
+(`interval="day"`, spanning the last ~210 calendar days — enough to
+cover a `trend_filter_lookback_trading_days`-bar moving average plus
+buffer for weekends/holidays), fresh every run. This same series is
+reused in Step 2 for the 60-day price-move signal and in the trend-filter
+check just below — no second historicals call needed for either.
+
 `universe.max_market_cap_usd` is a ceiling, not just a floor — exclude if
 market cap exceeds it, regardless of how strong the candidate otherwise
 looks. Log as
 `"market cap $<X> exceeds universe.max_market_cap_usd ($<threshold>) — excluded per universe filters"`.
 
-`exclude`'s `"penny_stocks"` entry is mechanical, not a judgment call:
-exclude if current price < `universe.penny_stock_price_threshold_usd`,
-regardless of how the stock is otherwise trading. Log the reason as
-`"penny stock (price $<X>, under $<threshold>) — excluded per universe.exclude: penny_stocks"`.
+`universe.penny_stock_filter_enabled` is a mechanical exclusion, not a
+judgment call, active only when true: exclude if current price <
+`universe.penny_stock_price_threshold_usd`, regardless of how the stock
+is otherwise trading. Log the reason as
+`"penny stock (price $<X>, under $<threshold>) — excluded per universe.penny_stock_filter_enabled"`.
 
-`exclude`'s `"leveraged_etfs"`/`"inverse_etfs"` entries are also
-mechanical: exclude if Step 1's `get_equity_fundamentals` `description`
-field contains "leveraged" or "inverse" (case-insensitive substring
-match) — fund providers state this directly (e.g. TQQQ: "provides 3x
-leveraged exposure...", SQQQ: "provides (-3x) inverse exposure..."), no
-judgment about current risk needed. Log the reason as
-`"leveraged/inverse ETF (description: \"<matched phrase>\") — excluded per universe.exclude: <leveraged_etfs|inverse_etfs>"`.
+`universe.leveraged_etf_filter_enabled`/`universe.inverse_etf_filter_enabled`
+are also mechanical, each independently toggleable: when true, exclude if
+Step 1's `get_equity_fundamentals` `description` field contains
+"leveraged" or "inverse" respectively (case-insensitive substring match)
+— fund providers state this directly (e.g. TQQQ: "provides 3x leveraged
+exposure...", SQQQ: "provides (-3x) inverse exposure..."), no judgment
+about current risk needed. Log the reason as
+`"leveraged/inverse ETF (description: \"<matched phrase>\") — excluded per universe.<leveraged_etf_filter_enabled|inverse_etf_filter_enabled>"`.
+
+`universe.trend_filter_lookback_trading_days` is a mechanical downtrend
+exclusion, active only when `universe.trend_filter_enabled` is true:
+exclude the candidate if `current_price` is below the simple moving
+average of its trailing `trend_filter_lookback_trading_days` daily
+closes (from the historicals series pulled above), regardless of how
+strong the candidate otherwise looks. Log as
+`"200-day MA $<X>, current price $<Y> (<Z>% below trend) — excluded per universe.trend_filter_enabled"`.
+If fewer than `trend_filter_lookback_trading_days` daily bars are
+available (e.g. a recent IPO), skip this specific check for that
+candidate rather than excluding or guessing, and log
+`"trend filter skipped — fewer than <trend_filter_lookback_trading_days> daily bars available"`.
 
 **Always ensure every held position is in the final list**
 (`get_equity_positions`, account_number from `risk_rules.json`) — if one
@@ -70,7 +91,7 @@ count entirely before checking whether the cap was exceeded, so a held
 position can never occupy a slot or cause a non-held candidate to be
 dropped. A held position must stay eligible for a fresh thesis
 (including `exit_existing`) and never get silently dropped for being
-illiquid, small-cap, or off the list. Log as
+illiquid, small-cap, below its moving average, or off the list. Log as
 `"stage": "screened", "passed_filters": true, "reason": "currently held — always included"`
 regardless of what the filters would have said.
 
@@ -79,11 +100,12 @@ Phase B's job. See Hard stop below.)
 
 ## Step 2 — Gather signals
 
-Pull ~60 days of price history per candidate (`get_equity_historicals`),
-called fresh for every candidate this run. Never reuse `close_60d_ago`,
-`latest_close`, or any other historicals-derived value from a prior
-run's `pending_proposals.jsonl` or `trade_log.jsonl`, even if today's
-figure looks unchanged from yesterday's — every number in `signal_check`
+Use the ~210-day price history per candidate already pulled in Step 1
+(`get_equity_historicals`) — no second pull needed; take its most recent
+60 calendar days' worth of bars for the signal below. Never reuse
+`close_60d_ago`, `latest_close`, or any other historicals-derived value
+from a prior run's `pending_proposals.jsonl` or `trade_log.jsonl`, even
+if today's figure looks unchanged from yesterday's — every number in `signal_check`
 must come from this run's own tool call. Whether it's worth a news
 search is mechanical, against `risk_rules.json`'s `signal_thresholds` —
 qualifies if it meets **any one** of these three (no extra tool calls
