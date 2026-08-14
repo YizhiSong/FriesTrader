@@ -53,7 +53,7 @@ nervous. Here's what actually stands between a thesis and an order:
   connected via Robinhood's own MCP server.
 - [Claude Code](https://claude.com/claude-code), on a Pro subscription or
   higher.
-- A GitHub account, to host your own fork of this repo — only needed
+- A GitHub account, to host your own copy of this repo — only needed
   for the cloud-hosted deployment (see "How it works" below for the
   cloud vs. local tradeoff).
 
@@ -164,13 +164,18 @@ in Example output.
 
 ## First-time setup
 
-1. **If running as cloud-hosted scheduled sessions**: fork this repo (or
-   otherwise create your own copy) to your own GitHub account — make it
-   private, since it'll accumulate real trading data (`trade_log.jsonl`,
-   proposals) once running. Phase A/B commit and push results back to
-   `main` in that setup, so you need a repo you actually control, not
-   this one.
-   **If running locally instead**, skip this — just clone or download
+1. **If running as cloud-hosted scheduled sessions**: click **"Use this
+   template"** (top of this repo's GitHub page) to create your own copy
+   — make it **private**, since it'll accumulate real trading data
+   (`trade_log.jsonl`, proposals) once running. Phase A/B commit and
+   push results back to `main` in that setup, so you need a repo you
+   actually control, not this one. See "Keeping your copy updated"
+   below for how to pull in future improvements.
+   **Building your own public variant instead** (extending or adapting
+   this for something else, not running it against your own account)?
+   **Fork** it instead — keeps a link back here and an easy "Sync fork"
+   button for updates.
+   **If running locally**, skip this entirely — just clone or download
    the repo; state lives on local disk, nothing gets pushed anywhere,
    but your machine needs to be on and available at each scheduled run
    time.
@@ -208,15 +213,15 @@ in Example output.
    reviewed enough dry-run cycles to trust the output. Do not let the
    agent flip it for you as a shortcut.
 
-## Keeping your fork updated
+## Keeping your copy updated
 
 This template gets improvements over time.
 
-- **Easiest: GitHub's "Sync fork" button**, on your fork's main page. No
-  local git needed. Works cleanly as long as nothing conflicts with your
-  own changes.
-- **If that button refuses (conflicts, usually in `risk_rules.json`)**,
-  resolve locally:
+- **If you forked**: GitHub's "Sync fork" button, on your repo's main
+  page. No local git needed. Works cleanly as long as nothing conflicts
+  with your own changes.
+- **If you used the template (or "Sync fork" refuses on a conflict,
+  usually in `risk_rules.json`)**, resolve locally:
   ```
   git remote add upstream https://github.com/YizhiSong/FriesTrader.git
   git fetch upstream
@@ -238,11 +243,11 @@ repo itself (`risk_rules.json`, `pending_proposals.jsonl`,
 - **Recommended: Claude Code's own scheduled cloud routines.** Set one
   routine to run `PHASE_A_TASK.md` on the Phase A schedule and a second
   for `PHASE_B_TASK.md` on the Phase B schedule, with the routine's
-  source pointed at **your fork** from First-time setup, not this repo.
+  source pointed at **your copy** from First-time setup, not this repo.
   This runs independent of any machine being on — the actual point of
   "fully automated."
 - **Alternative: a local scheduler** (cron, Windows Task Scheduler, etc.)
-  invoking the Claude Code CLI against your fork on the same two
+  invoking the Claude Code CLI against your copy on the same two
   schedules. Works, but only while that machine is running, and you're
   responsible for keeping the repo synced (`git pull` before, `git push`
   after each run) since the repo — not local disk — is the source of
