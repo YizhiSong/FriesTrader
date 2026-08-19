@@ -85,14 +85,16 @@ any sell decision) and log `"stage": "stop_loss"` with
 verify this position's stop manually before next cycle"`. Do not fall
 back to manual computation.
 
-If `triggered` is true: immediate full-position sell — no thesis
-review, never blocked by a loss-limit halt. Log `"stage": "stop_loss"`
-with the script's `stop_pct_used`, `stop_reference_basis`, and
-`stop_reference_price` (plus, when trailing, `trailing_high_since`);
-when `stop_pct_used` is null, log the script's own `"notes": "gain,
-stop not computed"` as-is. Include `stdev_20d`/`fallback_reason` when
-present. If triggered, it's executed in Step 5's sell-execution pass. A
-good thesis never cancels a stop-loss — see `risk_rules.json`'s note.
+If `triggered` is true — immediate full-position sell, no thesis
+review, never blocked by a loss-limit halt, executed in Step 5's
+sell-execution pass. A good thesis never cancels a stop-loss — see
+`risk_rules.json`'s note. Log `"stage": "stop_loss"` with:
+- the script's `stop_pct_used`, `stop_reference_basis`,
+  `stop_reference_price`
+- `trailing_high_since`, when trailing
+- the script's own `"notes": "gain, stop not computed"` as-is, when
+  `stop_pct_used` is null
+- `stdev_20d`/`fallback_reason`, when present
 
 **Take-profit check (always runs, independent of new candidates, tiered
 partial sells)**: Using the same pull as the stop-loss check (no need to
@@ -119,17 +121,20 @@ exclude this position from any sell decision, and log `"stage":
 — verify this position's tiers manually before next cycle"`. Do not
 fall back to manual computation.
 
-If `fired_this_cycle` is non-empty: log one line per entry in it
-(already in ascending order) — `"stage": "take_profit",
-"tier_gain_pct"`, `"sell_fraction"`, `"quantity_before"`,
-`"quantity_sold"` straight from that entry, plus the script's
-top-level `"gain_pct"` and `"tiers_status"`, `"triggered": true,
-"action": "sell_partial_position"` — each fired tier is executed in
-Step 5's sell-execution pass. No thesis review, never blocked by a
-loss-limit halt (it's an exit, not a new entry). If `fired_this_cycle`
-is empty, log one line with the script's `gain_pct` and
-`tiers_status`, `"triggered": false, "action": "hold_monitor"`. Once
-all three tiers have fired, the remaining quantity is held long
+**If `fired_this_cycle` is non-empty** — each fired tier is executed
+in Step 5's sell-execution pass, no thesis review, never blocked by a
+loss-limit halt (it's an exit, not a new entry). Log one line per
+entry in it (already in ascending order), `"stage": "take_profit",
+"triggered": true, "action": "sell_partial_position"`, with:
+- `"tier_gain_pct"`, `"sell_fraction"`, `"quantity_before"`,
+  `"quantity_sold"` straight from that entry
+- the script's top-level `"gain_pct"` and `"tiers_status"`
+
+**If `fired_this_cycle` is empty**, log one line with the script's
+`gain_pct` and `tiers_status`, `"triggered": false, "action":
+"hold_monitor"`.
+
+Once all three tiers have fired, the remaining quantity is held long
 indefinitely — only the stop-loss check above still applies to it.
 Tiers become eligible again only after the position is fully closed to
 zero shares and a new entry is later opened (a genuinely new holding
@@ -159,22 +164,28 @@ cycle, exclude this position from any sell decision, and log `"stage":
 "halt_entries_check_manually", "notes": "conviction_trim.py failed to
 run — verify this position manually before next cycle"`.
 
-If `triggered` is true: sell `trim_dollar_amount` worth of the position
-(round to a quantity the broker accepts), down to `target_size`. Log
-`"stage": "conviction_trim"` with the script's `overweight_pct`,
-`consecutive_cycles`, `trim_dollar_amount`, `"triggered": true, "action":
-"sell_partial_position"` — executed in Step 5's sell-execution pass,
-never blocked by a loss-limit halt, same as stop-loss/take-profit. If
-`triggered` is false, log one line with the script's `overweight_pct`,
-`qualifies_this_cycle`, `consecutive_cycles`, `"action": "hold_monitor"`.
+**If `triggered` is true** — sell `trim_dollar_amount` worth of the
+position (round to a quantity the broker accepts), down to
+`target_size`, executed in Step 5's sell-execution pass, never blocked
+by a loss-limit halt, same as stop-loss/take-profit. Log `"stage":
+"conviction_trim"` with the script's `overweight_pct`,
+`consecutive_cycles`, `trim_dollar_amount`, `"triggered": true,
+"action": "sell_partial_position"`.
+
+**If `triggered` is false**, log one line with the script's
+`overweight_pct`, `qualifies_this_cycle`, `consecutive_cycles`,
+`"action": "hold_monitor"`.
+
 Applies only to **held** positions — never a **new**-group candidate,
 which has no existing position to be overweight in.
 
-**Classify candidates:** `exit_existing` candidates (Phase A's
-recommendation to sell a currently-held position) go straight into
-Step 5's sell-execution pass — selling is never gated. Split the
-remaining `direction: "long"` candidates, using this snapshot's
-`get_equity_positions` (before this cycle's sells execute), into:
+**Classify candidates:** `direction: "avoid"` candidates aren't
+processed further (already logged in Phase A). `exit_existing`
+candidates (Phase A's recommendation to sell a currently-held
+position) go straight into Step 5's sell-execution pass — selling is
+never gated. Split the remaining `direction: "long"` candidates, using
+this snapshot's `get_equity_positions` (before this cycle's sells
+execute), into:
 - **new**: not a live open position — a genuine new entry, the only
   kind that consumes a slot.
 - **held**: already a live open position — a potential top-up
@@ -488,15 +499,19 @@ every risk_check entry from this sort — winners and rejections alike**
 (the only place this survives, since `pending_proposals.jsonl` is
 overwritten daily).
 
-Use the final script's JSON output directly — its `results` array (one
-entry per candidate, in ranked order, each carrying `passed`, and
-depending on outcome: `reason`, `position_action: "top_up"`,
-`dollar_amount`, `current_position_value`, `target_size`, `headroom`,
-`concurrent_positions_after`, `cash_remaining_after`,
-`cash_buffer_after_pct`) plus `cash_remaining_final` and
-`concurrent_positions_after_final` — rather than recomputing any of
-it. A **new**-group candidate rejected purely for lack of slots
-carries the script's own `"concurrent_positions_after (N) exceeds
+Use the final script's JSON output directly — rather than recomputing
+any of it:
+- its `results` array: one entry per candidate, in ranked order, each
+  carrying `passed`, and depending on outcome: `reason`,
+  `position_action: "top_up"`, `dollar_amount`,
+  `current_position_value`, `target_size`, `headroom`,
+  `concurrent_positions_after`, `cash_remaining_after`,
+  `cash_buffer_after_pct`
+- top-level `cash_remaining_final` and
+  `concurrent_positions_after_final`
+
+A **new**-group candidate rejected purely for lack of slots carries
+the script's own `"concurrent_positions_after (N) exceeds
 max_concurrent_positions (M) — cap filled by higher-priority
 candidates this cycle"` wording, to show it's scarcity, not quality.
 
@@ -514,12 +529,6 @@ candidate's `"date"` in `pending_proposals.jsonl` — Step 0's idempotency
 key) and, for `direction: "long"`, `risk_flags` and `pct_below_52wk_high`
 (for auditing the priority sort). Top-up entries must also include
 `"position_action": "top_up"`.
-
-`direction: "avoid"` candidates aren't processed further (already logged
-in Phase A). `direction: "exit_existing"` candidates for a held symbol
-skip all the checks above (selling reduces risk — not blocked by
-position/concurrency/cash-buffer/loss-limit checks) and go straight
-into Step 5's "Execute sells now" pass.
 
 **Execute approved buys:** for every candidate the sizing above
 approved (new entries and top-ups), in ranked order, run the exact
