@@ -258,14 +258,14 @@ run's sourced research already found (no extra searches):
 - `"leadership_turnover"` — a C-suite departure/replacement in the last
   ~90 days tied to operational or execution problems (not routine
   succession).
-Empty array (`[]`) if none apply. Used by Phase B (Step 6) as the
+Empty array (`[]`) if none apply. Used by Phase B (Step 7) as the
 primary within-tier tie-break, ahead of `pct_below_52wk_high`.
 
 **Include `pct_below_52wk_high`** for every `direction: "long"` candidate:
 `(high_52_weeks - current_price) / high_52_weeks` (e.g. `0.15`).
 `high_52_weeks` from Step 1's `get_equity_fundamentals` call,
 `current_price` from Step 1's `get_equity_quotes` call. Used by
-Phase B (Step 6) as the secondary within-tier tie-break, after
+Phase B (Step 7) as the secondary within-tier tie-break, after
 `risk_flags` — a disclosed "room in the setup" proxy, not a fair-value
 calc. Omit for `avoid`/`exit_existing`.
 
@@ -308,7 +308,7 @@ Write:
   `trade_log_template.jsonl`), plus `pct_below_52wk_high` for `long`
   candidates (Step 3).
 
-Do not touch `trade_log.jsonl` — reserved for Steps 4–7 (Phase B), which
+Do not touch `trade_log.jsonl` — reserved for Steps 4–9 (Phase B), which
 reads `pending_proposals.jsonl` separately.
 
 **After all `screened`/`thesis` lines, append one `"stage": "summary"`

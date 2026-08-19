@@ -4,11 +4,11 @@ _Part of [FriesTrader](https://github.com/YizhiSong/FriesTrader), Copyright (c) 
 
 Automated second half of this pipeline (see `README.md`), run every
 weekday 8:35am Central (5 min after 9:30am ET open) as a cloud routine.
-Performs **Steps 4–7**, consuming candidates from Phase A's
+Performs **Steps 4–9**, consuming candidates from Phase A's
 `pending_proposals.jsonl`.
 
 Authorized to place real live orders under a narrow condition (see Step
-5's "Live-order gate" — Step 6 reuses the identical gate for buys).
+6's "Live-order gate" — Step 8 reuses the identical gate for buys).
 **That authorization must be given explicitly, in advance, by whoever
 operates this pipeline — after being warned that an unattended
 scheduled task has no human confirmation at the moment of execution.**
@@ -20,7 +20,7 @@ Do not add, remove, or loosen any gate condition on your own judgment.
    `account_number`, not a hardcoded value.
 2. Determine today's day of week mechanically (e.g.
    `TZ='America/Chicago' date +'%A'`) — don't infer it from the date
-   string. Needed for Step 6's weekend-gap check.
+   string. Needed for Step 7's weekend-gap check.
 3. Read `pending_proposals.jsonl` (overwritten each Phase A run, holds only
    the latest run — use its `"stage": "thesis"` entries directly as
    today's candidates). If missing or empty, log a `cycle_summary` noting
@@ -40,39 +40,39 @@ Do not add, remove, or loosen any gate condition on your own judgment.
      (same-day reruns count once). This represents validated days, not
      executions, and must be
      `>= execution.dry_run_min_cycles_before_live` before the
-     live-order gate (Step 5 for sells, Step 6 for buys) can open.
+     live-order gate (Step 6 for sells, Step 8 for buys) can open.
 
-## Step 4 — Classify candidates and determine sells
-
-### Classify candidates
+## Step 4 — Classify candidates
 
 Pull `get_equity_positions` — this snapshot, taken before any of this
-cycle's sells execute, is also what the stop-loss/take-profit checks
-below use.
+cycle's sells execute, is also what Step 5's stop-loss/take-profit
+checks use.
 
 `direction: "avoid"` candidates aren't processed further (already
 logged in Phase A). `exit_existing` candidates (Phase A's
 recommendation to sell a currently-held position) go straight into
-Step 5's sell-execution pass — selling is never gated. Split the
+Step 6's sell-execution pass — selling is never gated. Split the
 remaining `direction: "long"` candidates, using this snapshot, into:
 - **new**: not a live open position — a genuine new entry, the only
   kind that consumes a slot.
 - **held**: already a live open position — a potential top-up
-  (Step 6). Top-ups never consume a slot and are always considered
+  (Step 7). Top-ups never consume a slot and are always considered
   regardless of account fullness.
 
 **This classification stays fixed for the rest of the cycle**, even
 if a same-cycle sell later empties the position — otherwise a
 symbol whose stop-loss fires this cycle would silently shift from
-**held** to **new** by the time Step 6 runs, and Step 6's
+**held** to **new** by the time Step 7 runs, and Step 7's
 same-cycle sell-then-buy guard (which operates on the **held**
 group) would no longer find it there.
+
+## Step 5 — Sell-side risk enforcement
 
 ### Stop-loss check (always runs, independent of new candidates)
 
 Gather inputs, then let the script decide — do not hand-compute the
 reference price, drawdown, stdev, or clamp. For each open position
-(the snapshot pulled above):
+(the snapshot pulled in Step 4):
 - Pull a fresh `get_equity_quotes` price.
 - Check `trade_log.jsonl` for whether any `take_profit` tier has fired
   for this position's current holding period (same "since quantity
@@ -111,7 +111,7 @@ verify this position's stop manually before next cycle"`. Do not fall
 back to manual computation.
 
 If `triggered` is true — immediate full-position sell, no thesis
-review, never blocked by a loss-limit halt, executed in Step 5's
+review, never blocked by a loss-limit halt, executed in Step 6's
 sell-execution pass. A good thesis never cancels a stop-loss — see
 `risk_rules.json`'s note. Log `"stage": "stop_loss"` with:
 - the script's `stop_pct_used`, `stop_reference_basis`,
@@ -126,7 +126,7 @@ sell-execution pass. A good thesis never cancels a stop-loss — see
 Using the same pull as the stop-loss check (no need to
 call again — average cost, quantity, and fresh price as they stood at
 the start of this step, before any of this cycle's sells execute in
-Step 5), check `trade_log.jsonl` for `"stage": "take_profit"` entries
+Step 6), check `trade_log.jsonl` for `"stage": "take_profit"` entries
 for this symbol at each tier's exact `gain_pct`, logged since the
 position's quantity last reached zero (a full exit) — collect the
 `gain_pct` values already fired this holding period.
@@ -148,7 +148,7 @@ exclude this position from any sell decision, and log `"stage":
 fall back to manual computation.
 
 **If `fired_this_cycle` is non-empty** — each fired tier is executed
-in Step 5's sell-execution pass, no thesis review, never blocked by a
+in Step 6's sell-execution pass, no thesis review, never blocked by a
 loss-limit halt (it's an exit, not a new entry). Log one line per
 entry in it (already in ascending order), `"stage": "take_profit",
 "triggered": true, "action": "sell_partial_position"`, with:
@@ -171,7 +171,7 @@ period, not a top-up).
 Skip entirely if `risk_rules.json`'s `conviction_trim.enabled` is `false`.
 Otherwise, for every **held** position, using this cycle's fresh
 `conviction` and `target_size` (from the same inputs gathered for Step
-6's priority-order ranking — pull those first if not yet available),
+7's priority-order ranking — pull those first if not yet available),
 look back through this symbol's `risk_check` entries in `trade_log.jsonl`,
 most recent first, and count consecutive entries (not including this
 cycle, and not crossing back over a prior full exit to zero) where
@@ -193,7 +193,7 @@ run — verify this position manually before next cycle"`.
 
 **If `triggered` is true** — sell `trim_dollar_amount` worth of the
 position (round to a quantity the broker accepts), down to
-`target_size`, executed in Step 5's sell-execution pass, never blocked
+`target_size`, executed in Step 6's sell-execution pass, never blocked
 by a loss-limit halt, same as stop-loss/take-profit. Log `"stage":
 "conviction_trim"` with the script's `overweight_pct`,
 `consecutive_cycles`, `trim_dollar_amount`, `"triggered": true,
@@ -206,7 +206,7 @@ by a loss-limit halt, same as stop-loss/take-profit. Log `"stage":
 Applies only to **held** positions — never a **new**-group candidate,
 which has no existing position to be overweight in.
 
-## Step 5 — Sell-side execution
+## Step 6 — Sell-side execution
 
 **Execute sells now — every stop-loss trigger, fired take-profit tier,
 conviction-trim trigger, and Step 4's `exit_existing` candidates:** run
@@ -294,15 +294,15 @@ afterward — that's outside this pipeline's visibility and control.
 sells, not an estimate):** call `get_portfolio` (for `total_value` and
 `cash`) and `get_equity_positions` (for the live open position count)
 again — the earlier pull is now stale for any sell that actually
-executed above. Use these fresh values for Step 6's capacity
+executed above. Use these fresh values for Step 7's capacity
 computation, loss-limit check, and candidate sizing below. In
 `dry_run` mode these won't have changed (nothing real executed),
 which is expected — this pull only matters once `execution.mode` is
 `"live"`.
 
-## Step 6 — Buy-side risk enforcement, sizing, and execution
+## Step 7 — Buy-side risk enforcement and sizing
 
-**Compute capacity (using Step 5's fresh re-pulled account state, not
+**Compute capacity (using Step 6's fresh re-pulled account state, not
 an estimate):** `open_slots = max_concurrent_positions - (live
 positions per the re-pulled get_equity_positions above)`. Only
 **new**-group candidates (Step 4's classification) consume a slot;
@@ -319,7 +319,7 @@ still run out mid-ranking via ordinary per-candidate concurrency check).
 
 **No same-cycle sell-then-buy**: if a symbol's stop-loss fired, any
 take-profit tier fired, or a conviction-trim fired earlier this cycle
-(Step 4), it is not eligible for a top-up this same cycle, regardless
+(Step 5), it is not eligible for a top-up this same cycle, regardless
 of thesis or conviction — drop it from the **held** group before
 continuing, logging
 `"stage": "risk_check", "passed": false, "position_action": "top_up", "reason": "stop-loss/take-profit fired this cycle — not eligible for a same-cycle top-up"`.
@@ -537,9 +537,11 @@ key) and, for `direction: "long"`, `risk_flags` and `pct_below_52wk_high`
 (for auditing the priority sort). Top-up entries must also include
 `"position_action": "top_up"`.
 
-**Execute approved buys:** for every candidate the sizing above
+## Step 8 — Buy-side execution
+
+**Execute approved buys:** for every candidate Step 7's sizing
 approved (new entries and top-ups), in ranked order, run the exact
-same review → live-order-gate → place → confirm procedure as Step 5's
+same review → live-order-gate → place → confirm procedure as Step 6's
 "Execute sells now" (`review_equity_order` first, the same Live-order
 gate conditions, the same fill-confirmation and logging shape) — with
 one difference: the pre-trade estimate logged alongside each order is
@@ -547,15 +549,15 @@ one difference: the pre-trade estimate logged alongside each order is
 `quote_bid` used for sells.
 
 Never change `execution.mode` yourself. Every `order` entry must carry
-`proposal_date` (same as this step's `risk_check` entries) — Step 0's
+`proposal_date` (same as Step 7's `risk_check` entries) — Step 0's
 idempotency check matches against either a `risk_check` or `order`
 entry.
 
-## Step 7 — Logging
+## Step 9 — Logging
 
 Append every decision to `trade_log.jsonl` — one JSON line each:
 `stop_loss`, `take_profit`, `conviction_trim`, `loss_limit_check`, `risk_check` (pass/fail,
-including Step 6's weekend-gap rejections, buy-gate rejections
+including Step 7's weekend-gap rejections, buy-gate rejections
 (price-gap, extension, wash-sale, sell re-entry lock), and top-up
 evaluations), and `order` stages, matching the shape already in
 `trade_log.jsonl`/`trade_log_template.jsonl`. Top-up entries must include
@@ -593,13 +595,13 @@ ever disagree, trust `trade_log.jsonl`.
 ## Hard rules
 
 - Never change `execution.mode` or any `risk_rules.json` value.
-- Never call `place_equity_order` unless the live-order gate (Step 5 for
-  sells, Step 6 for buys — same conditions) is open at that moment.
+- Never call `place_equity_order` unless the live-order gate (Step 6 for
+  sells, Step 8 for buys — same conditions) is open at that moment.
 - A "high conviction" thesis never overrides a failed mechanical check.
 - If required data can't be retrieved (portfolio, positions, P&L history),
   fail safe — treat the check as failed/halt new entries — and log exactly
   what failed.
-- The wash-sale guard (Step 6's buy gate) only ever blocks a buy. It
+- The wash-sale guard (Step 7's buy gate) only ever blocks a buy. It
   must never block, delay, or resize a
   stop_loss/take_profit/conviction_trim/exit_existing sell — a tax
   outcome never overrides risk management.

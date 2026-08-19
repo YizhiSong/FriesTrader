@@ -82,7 +82,7 @@ graph TD
   writes a logged thesis per candidate to `pending_proposals.jsonl`.
   Places no orders, not even dry-run ones.
   Full spec: `PHASE_A_TASK.md`.
-- **Phase B** (Steps 4–7, ~8:35am Central weekdays) — re-verifies Phase A's
+- **Phase B** (Steps 4–9, ~8:35am Central weekdays) — re-verifies Phase A's
   proposals against fresh opening data, enforces `risk_rules.json`
   mechanically, and dry-runs or (gated) places orders. Full spec:
   `PHASE_B_TASK.md`.
@@ -123,9 +123,10 @@ scheduled time.)
 
   Each takes plain CLI args, prints one JSON object, and is meant to be
   read from directly rather than re-derived — see `PHASE_B_TASK.md`
-  Steps 4–6 for the exact call shape of each (`entry_gate.py`/
-  `stop_loss.py`/`take_profit.py`/`conviction_trim.py` in Step 4;
-  `pnl_pct.py`/`rank_candidates.py`/`position_sizing.py` in Step 6).
+  Steps 5 and 7 for the exact call shape of each
+  (`stop_loss.py`/`take_profit.py`/`conviction_trim.py` in Step 5;
+  `entry_gate.py`/`pnl_pct.py`/`rank_candidates.py`/`position_sizing.py`
+  in Step 7).
 - `PHASE_A_TASK.md` / `PHASE_B_TASK.md` — the full, self-contained spec
   each phase follows.
 - `trade_log_template.jsonl` — the log line shapes; real logs accumulate
@@ -302,17 +303,17 @@ End with a concise summary of what you screened/filtered/proposed, and confirm t
 #### Phase B prompt
 
 ```
-You are running the DAILY automated Phase B step (re-verify, risk enforcement, order review/execution, logging) for a small real personal trading account on Robinhood (account_number: <your Robinhood account_number>). This repo has already been cloned into your working directory. PHASE_B_TASK.md in this checkout is the full source-of-truth spec for what to do (Steps 4-7) — read and follow it exactly.
+You are running the DAILY automated Phase B step (re-verify, risk enforcement, order review/execution, logging) for a small real personal trading account on Robinhood (account_number: <your Robinhood account_number>). This repo has already been cloned into your working directory. PHASE_B_TASK.md in this checkout is the full source-of-truth spec for what to do (Steps 4-9) — read and follow it exactly.
 
 First, determine today's REAL date, day-of-week, and time-of-day in America/Chicago (Central) via Bash — do not guess or infer these, and do not compute day-of-week yourself from the date string:
 TZ='America/Chicago' date +'%Y-%m-%d'
 TZ='America/Chicago' date +'%A'
 TZ='America/Chicago' date +'%H:%M:%S'
-Use the date as the 'date' field and the time as the 'timestamp' field (time-of-day only, e.g. "08:35:01" — never prepend the date to it) on every line you write to trade_log.jsonl, per PHASE_B_TASK.md. Determine is_monday from the day-of-week output (true only if it's literally 'Monday') for the Step 4 weekend-gap check.
+Use the date as the 'date' field and the time as the 'timestamp' field (time-of-day only, e.g. "08:35:01" — never prepend the date to it) on every line you write to trade_log.jsonl, per PHASE_B_TASK.md. Determine is_monday from the day-of-week output (true only if it's literally 'Monday') for the Step 7 weekend-gap check.
 
 Read risk_rules.json fresh from this checkout every run — never assume prior values or cache across runs. Read pending_proposals.jsonl and trade_log.jsonl fresh from this checkout too.
 
-Follow PHASE_B_TASK.md's Steps 4-7 exactly, including the idempotency rule (key off each candidate's own proposal_date, not today's date), the dry-run cycle count rule, the priority/tiebreak rules, and the live-order gate in Step 6. This task is authorized to place real live orders only under that gate's narrow, explicit condition. Do not add, remove, or loosen any condition of that gate on your own judgment, and never change execution.mode or any other value in risk_rules.json yourself.
+Follow PHASE_B_TASK.md's Steps 4-9 exactly, including the idempotency rule (key off each candidate's own proposal_date, not today's date), the dry-run cycle count rule, the priority/tiebreak rules, and the live-order gate (Step 6 for sells, Step 8 for buys). This task is authorized to place real live orders only under that gate's narrow, explicit condition. Do not add, remove, or loosen any condition of that gate on your own judgment, and never change execution.mode or any other value in risk_rules.json yourself.
 
 Append every decision to trade_log.jsonl (do not touch pending_proposals.jsonl except to read it). When done, commit and push trade_log.jsonl back to this repo's main branch:
 git add trade_log.jsonl
