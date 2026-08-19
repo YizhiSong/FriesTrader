@@ -123,8 +123,8 @@ scheduled time.)
 
   Each takes plain CLI args, prints one JSON object, and is meant to be
   read from directly rather than re-derived — see `PHASE_B_TASK.md`
-  Steps 4–6 for the exact call shape of each (`entry_gate.py` in Step 4;
-  `stop_loss.py`/`take_profit.py`/`conviction_trim.py` in Step 5;
+  Steps 4–6 for the exact call shape of each (`entry_gate.py`/
+  `stop_loss.py`/`take_profit.py`/`conviction_trim.py` in Step 4;
   `pnl_pct.py`/`rank_candidates.py`/`position_sizing.py` in Step 6).
 - `PHASE_A_TASK.md` / `PHASE_B_TASK.md` — the full, self-contained spec
   each phase follows.

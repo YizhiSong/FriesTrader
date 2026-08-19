@@ -44,11 +44,138 @@ Do not add, remove, or loosen any gate condition on your own judgment.
 
 ## Step 4 — Re-verify proposals against fresh opening data
 
-**Resolve sells and classify candidates (do this first):**
-1. Run Step 5's stop-loss, take-profit, and conviction-trim checks now
-   (pull `get_equity_positions` and fresh quotes, resolve any triggered
-   sells) — needed before knowing current slot occupancy and before
-   this step's buy gate can correctly evaluate same-cycle sells.
+**Stop-loss check (always runs, independent of new candidates):** Pull
+current `get_equity_positions` and fresh `get_equity_quotes` for every
+open position.
+
+**Gather inputs, then let the script decide — do not hand-compute the
+reference price, drawdown, stdev, or clamp.** For each position:
+- Check `trade_log.jsonl` for whether any `take_profit` tier has fired
+  for this position's current holding period (same "since quantity
+  last reached zero" scope as the take-profit check below).
+- If a tier has fired, pull daily `high_price` bars via
+  `get_equity_historicals` (interval=day, split-adjusted) from the
+  holding period's entry date (the buy that started it from zero)
+  through yesterday, for `--daily-highs`.
+- If `risk_rules.json`'s `stop_loss.mode` is `"volatility_scaled"` and
+  the position is not currently showing a gain on average cost, pull
+  the last `stop_loss.volatility_lookback_trading_days` trading days
+  of daily closes via `get_equity_historicals` (interval=day,
+  split-adjusted; request ~30 calendar days back to cover
+  weekends/holidays, drop any `interpolated: true` bars), oldest
+  first through yesterday, for `--daily-closes`. Skip this pull on a
+  gain — the script itself also skips the computation in that case,
+  since a non-positive drawdown can never meet a positive `stop_pct`.
+
+Run:
+`python3 scripts/stop_loss.py --average-cost <avg cost> --current-price <fresh quote> --mode <stop_loss.mode> --hard-stop-pct <stop_loss.hard_stop_pct> --volatility-multiplier <stop_loss.volatility_stdev_multiplier> --min-stop-pct <stop_loss.min_stop_pct> --max-stop-pct <stop_loss.max_stop_pct> --fallback-stop-pct <stop_loss.fallback_stop_pct> --min-bars 10 [--daily-closes <comma-separated closes>] [--take-profit-tier-fired --daily-highs <comma-separated highs> --trailing-high-since <entry date>]`
+and use its JSON output directly (`stop_reference_basis`,
+`stop_reference_price`, `drawdown_pct`, `stop_pct_used`, `stdev_20d`
+when computed, `fallback_reason` when the fallback applied,
+`triggered`, `action`) rather than recomputing any of it. This only
+changes what the stop protects — it does not affect the take-profit
+gain calculation below, which always measures gain from average cost
+regardless of `stop_reference_basis`.
+
+**If the script fails to run**, do not guess a result: treat this
+position as if a loss-limit breach applied this cycle (`entries_halted
+= true` for new entries/top-ups, this position itself excluded from
+any sell decision) and log `"stage": "stop_loss"` with
+`"stop_pct_used": null, "triggered": false, "action":
+"halt_entries_check_manually", "notes": "stop_loss.py failed to run —
+verify this position's stop manually before next cycle"`. Do not fall
+back to manual computation.
+
+If `triggered` is true: immediate full-position sell — no thesis
+review, never blocked by a loss-limit halt. Log `"stage": "stop_loss"`
+with the script's `stop_pct_used`, `stop_reference_basis`, and
+`stop_reference_price` (plus, when trailing, `trailing_high_since`);
+when `stop_pct_used` is null, log the script's own `"notes": "gain,
+stop not computed"` as-is. Include `stdev_20d`/`fallback_reason` when
+present. If triggered, it's executed in Step 5's sell-execution pass. A
+good thesis never cancels a stop-loss — see `risk_rules.json`'s note.
+
+**Take-profit check (always runs, independent of new candidates, tiered
+partial sells)**: Using the same pull as the stop-loss check (no need to
+call again — average cost, quantity, and fresh price as they stood at
+the start of this step, before any of this cycle's sells execute in
+Step 5), check `trade_log.jsonl` for `"stage": "take_profit"` entries
+for this symbol at each tier's exact `gain_pct`, logged since the
+position's quantity last reached zero (a full exit) — collect the
+`gain_pct` values already fired this holding period.
+
+Run:
+`python3 scripts/take_profit.py --average-cost <avg cost> --current-price <fresh quote> --quantity <quantity> --tiers <risk_rules.json take_profit.tiers as "gain_pct:sell_fraction" pairs, e.g. "0.15:0.25,0.30:0.25,0.50:0.25"> [--already-fired <comma-separated gain_pct values already fired this holding period>]`
+and use its JSON output directly (`gain_pct`, `tiers_status`,
+`fired_this_cycle`, `triggered`, `action`) rather than recomputing any
+of it — the script already handles the ascending-order,
+cascading-quantity logic for **when a single cycle's gain has jumped
+past more than one not-yet-fired tier at once**.
+
+**If the script fails to run**, treat it like a stop-loss script
+failure: `entries_halted = true` for new entries/top-ups this cycle,
+exclude this position from any sell decision, and log `"stage":
+"take_profit"` with `"triggered": false, "action":
+"halt_entries_check_manually", "notes": "take_profit.py failed to run
+— verify this position's tiers manually before next cycle"`. Do not
+fall back to manual computation.
+
+If `fired_this_cycle` is non-empty: log one line per entry in it
+(already in ascending order) — `"stage": "take_profit",
+"tier_gain_pct"`, `"sell_fraction"`, `"quantity_before"`,
+`"quantity_sold"` straight from that entry, plus the script's
+top-level `"gain_pct"` and `"tiers_status"`, `"triggered": true,
+"action": "sell_partial_position"` — each fired tier is executed in
+Step 5's sell-execution pass. No thesis review, never blocked by a
+loss-limit halt (it's an exit, not a new entry). If `fired_this_cycle`
+is empty, log one line with the script's `gain_pct` and
+`tiers_status`, `"triggered": false, "action": "hold_monitor"`. Once
+all three tiers have fired, the remaining quantity is held long
+indefinitely — only the stop-loss check above still applies to it.
+Tiers become eligible again only after the position is fully closed to
+zero shares and a new entry is later opened (a genuinely new holding
+period, not a top-up).
+
+**Conviction-trim check (held positions only, mechanical rebalance-down):**
+Skip entirely if `risk_rules.json`'s `conviction_trim.enabled` is `false`.
+Otherwise, for every **held** position, using this cycle's fresh
+`conviction` and `target_size` (from the same inputs gathered for Step
+6's priority-order ranking — pull those first if not yet available),
+look back through this symbol's `risk_check` entries in `trade_log.jsonl`,
+most recent first, and count consecutive entries (not including this
+cycle, and not crossing back over a prior full exit to zero) where
+`conviction == "low"` and `current_position_value` exceeded `target_size`
+by more than `conviction_trim.overweight_trigger_pct`.
+
+Run:
+`python3 scripts/conviction_trim.py --conviction <this cycle's conviction> --current-position-value <current_position_value> --target-size <target_size> --overweight-trigger-pct <conviction_trim.overweight_trigger_pct> --prior-consecutive-low-overweight-cycles <count from the lookback above> --min-low-conviction-cycles <conviction_trim.min_low_conviction_cycles>`
+and use its JSON output directly (`overweight_pct`, `qualifies_this_cycle`,
+`consecutive_cycles`, `triggered`, `trim_dollar_amount`, `action`) rather
+than recomputing any of it.
+
+**If the script fails to run**, treat it like a stop-loss/take-profit
+script failure: `entries_halted = true` for new entries/top-ups this
+cycle, exclude this position from any sell decision, and log `"stage":
+"conviction_trim"` with `"triggered": false, "action":
+"halt_entries_check_manually", "notes": "conviction_trim.py failed to
+run — verify this position manually before next cycle"`.
+
+If `triggered` is true: sell `trim_dollar_amount` worth of the position
+(round to a quantity the broker accepts), down to `target_size`. Log
+`"stage": "conviction_trim"` with the script's `overweight_pct`,
+`consecutive_cycles`, `trim_dollar_amount`, `"triggered": true, "action":
+"sell_partial_position"` — executed in Step 5's sell-execution pass,
+never blocked by a loss-limit halt, same as stop-loss/take-profit. If
+`triggered` is false, log one line with the script's `overweight_pct`,
+`qualifies_this_cycle`, `consecutive_cycles`, `"action": "hold_monitor"`.
+Applies only to **held** positions — never a **new**-group candidate,
+which has no existing position to be overweight in.
+
+**Classify candidates and compute capacity:**
+1. The stop-loss/take-profit/conviction-trim checks above already
+   resolved this cycle's sell triggers — needed before knowing current
+   slot occupancy and before this step's buy gate below can correctly
+   evaluate same-cycle sells.
 2. Process any `direction: "exit_existing"` candidates now too (through
    the staleness check below, then into Step 5's sell-execution pass) —
    selling is never gated.
@@ -61,17 +188,17 @@ Do not add, remove, or loosen any gate condition on your own judgment.
 4. `open_slots = max_concurrent_positions - (live positions per
    get_equity_positions, excluding sells just resolved)`. Only **new**
    candidates consume a slot; fixed for the cycle unless one gets
-   approved in Step 5. **This is a preliminary estimate** for this
+   approved in Step 6. **This is a preliminary estimate** for this
    step's own short-circuit only — Step 5 re-pulls live positions after
    sells actually execute and uses that as the authoritative count for
-   ranking/sizing.
+   Step 6's ranking/sizing.
 5. **If `open_slots <= 0`**: no **new** candidate can be approved this
-   cycle. Skip the weekend-gap search, staleness check, and Step 5 work
-   for every **new**-group candidate — log instead:
+   cycle. Skip the weekend-gap search and buy gate below for every
+   **new**-group candidate — log instead:
    `"stage": "risk_check", "passed": false, "proposal_date": "<candidate's date from pending_proposals.jsonl>", "reason": "no open slots this cycle (X of Y max already held/approved) — skipped without staleness re-check"`.
    **held** group is unaffected.
 6. **If `open_slots > 0`**: **new** group continues normally (slots may
-   still run out mid-Step-5 via ordinary per-candidate concurrency check).
+   still run out mid-Step-6 via ordinary per-candidate concurrency check).
 
 For every **new** candidate not short-circuited by 5, and every **held**
 candidate (always):
@@ -195,137 +322,7 @@ it — log `"stage": "risk_check", "passed": false, "proposal_date":
 you found>", "sources": ["Outlet Name: https://..."]`, same as the
 weekend-gap check above.
 
-## Step 5 — Sell-side risk enforcement and execution
-
-**Stop-loss check (always runs, independent of new candidates):** Pull
-current `get_equity_positions` and fresh `get_equity_quotes` for every
-open position.
-
-**Gather inputs, then let the script decide — do not hand-compute the
-reference price, drawdown, stdev, or clamp.** For each position:
-- Check `trade_log.jsonl` for whether any `take_profit` tier has fired
-  for this position's current holding period (same "since quantity
-  last reached zero" scope as the take-profit check below).
-- If a tier has fired, pull daily `high_price` bars via
-  `get_equity_historicals` (interval=day, split-adjusted) from the
-  holding period's entry date (the buy that started it from zero)
-  through yesterday, for `--daily-highs`.
-- If `risk_rules.json`'s `stop_loss.mode` is `"volatility_scaled"` and
-  the position is not currently showing a gain on average cost, pull
-  the last `stop_loss.volatility_lookback_trading_days` trading days
-  of daily closes via `get_equity_historicals` (interval=day,
-  split-adjusted; request ~30 calendar days back to cover
-  weekends/holidays, drop any `interpolated: true` bars), oldest
-  first through yesterday, for `--daily-closes`. Skip this pull on a
-  gain — the script itself also skips the computation in that case,
-  since a non-positive drawdown can never meet a positive `stop_pct`.
-
-Run:
-`python3 scripts/stop_loss.py --average-cost <avg cost> --current-price <fresh quote> --mode <stop_loss.mode> --hard-stop-pct <stop_loss.hard_stop_pct> --volatility-multiplier <stop_loss.volatility_stdev_multiplier> --min-stop-pct <stop_loss.min_stop_pct> --max-stop-pct <stop_loss.max_stop_pct> --fallback-stop-pct <stop_loss.fallback_stop_pct> --min-bars 10 [--daily-closes <comma-separated closes>] [--take-profit-tier-fired --daily-highs <comma-separated highs> --trailing-high-since <entry date>]`
-and use its JSON output directly (`stop_reference_basis`,
-`stop_reference_price`, `drawdown_pct`, `stop_pct_used`, `stdev_20d`
-when computed, `fallback_reason` when the fallback applied,
-`triggered`, `action`) rather than recomputing any of it. This only
-changes what the stop protects — it does not affect the take-profit
-gain calculation below, which always measures gain from average cost
-regardless of `stop_reference_basis`.
-
-**If the script fails to run**, do not guess a result: treat this
-position as if a loss-limit breach applied this cycle (`entries_halted
-= true` for new entries/top-ups, this position itself excluded from
-any sell decision) and log `"stage": "stop_loss"` with
-`"stop_pct_used": null, "triggered": false, "action":
-"halt_entries_check_manually", "notes": "stop_loss.py failed to run —
-verify this position's stop manually before next cycle"`. Do not fall
-back to manual computation.
-
-If `triggered` is true: immediate full-position sell — no thesis
-review, never blocked by a loss-limit halt. Log `"stage": "stop_loss"`
-with the script's `stop_pct_used`, `stop_reference_basis`, and
-`stop_reference_price` (plus, when trailing, `trailing_high_since`);
-when `stop_pct_used` is null, log the script's own `"notes": "gain,
-stop not computed"` as-is. Include `stdev_20d`/`fallback_reason` when
-present. If triggered, it's executed immediately below, in this step's
-sell-execution pass. A good thesis never cancels a stop-loss — see
-`risk_rules.json`'s note.
-
-**Take-profit check (always runs, independent of new candidates, tiered
-partial sells)**: Using the same pull as the stop-loss check (no need to
-call again — average cost, quantity, and fresh price as they stood at
-the start of Step 5, before any of this cycle's sells execute further
-down in this same step), check `trade_log.jsonl` for `"stage":
-"take_profit"` entries for
-this symbol at each tier's exact `gain_pct`, logged since the
-position's quantity last reached zero (a full exit) — collect the
-`gain_pct` values already fired this holding period.
-
-Run:
-`python3 scripts/take_profit.py --average-cost <avg cost> --current-price <fresh quote> --quantity <quantity> --tiers <risk_rules.json take_profit.tiers as "gain_pct:sell_fraction" pairs, e.g. "0.15:0.25,0.30:0.25,0.50:0.25"> [--already-fired <comma-separated gain_pct values already fired this holding period>]`
-and use its JSON output directly (`gain_pct`, `tiers_status`,
-`fired_this_cycle`, `triggered`, `action`) rather than recomputing any
-of it — the script already handles the ascending-order,
-cascading-quantity logic for **when a single cycle's gain has jumped
-past more than one not-yet-fired tier at once**.
-
-**If the script fails to run**, treat it like a stop-loss script
-failure: `entries_halted = true` for new entries/top-ups this cycle,
-exclude this position from any sell decision, and log `"stage":
-"take_profit"` with `"triggered": false, "action":
-"halt_entries_check_manually", "notes": "take_profit.py failed to run
-— verify this position's tiers manually before next cycle"`. Do not
-fall back to manual computation.
-
-If `fired_this_cycle` is non-empty: log one line per entry in it
-(already in ascending order) — `"stage": "take_profit",
-"tier_gain_pct"`, `"sell_fraction"`, `"quantity_before"`,
-`"quantity_sold"` straight from that entry, plus the script's
-top-level `"gain_pct"` and `"tiers_status"`, `"triggered": true,
-"action": "sell_partial_position"` — each fired tier is executed
-immediately below, in this step's sell-execution pass. No thesis
-review, never blocked by a loss-limit halt (it's an exit, not a new
-entry). If `fired_this_cycle` is empty, log
-one line with the script's `gain_pct` and `tiers_status`, `"triggered":
-false, "action": "hold_monitor"`. Once all three tiers have fired, the
-remaining quantity is held long indefinitely — only the stop-loss
-check above still applies to it. Tiers become eligible again only
-after the position is fully closed to zero shares and a new entry is
-later opened (a genuinely new holding period, not a top-up).
-
-**Conviction-trim check (held positions only, mechanical rebalance-down):**
-Skip entirely if `risk_rules.json`'s `conviction_trim.enabled` is `false`.
-Otherwise, for every **held** position, using this cycle's fresh
-`conviction` and `target_size` (from the same inputs gathered for the
-priority-order ranking below — pull those first if not yet available),
-look back through this symbol's `risk_check` entries in `trade_log.jsonl`,
-most recent first, and count consecutive entries (not including this
-cycle, and not crossing back over a prior full exit to zero) where
-`conviction == "low"` and `current_position_value` exceeded `target_size`
-by more than `conviction_trim.overweight_trigger_pct`.
-
-Run:
-`python3 scripts/conviction_trim.py --conviction <this cycle's conviction> --current-position-value <current_position_value> --target-size <target_size> --overweight-trigger-pct <conviction_trim.overweight_trigger_pct> --prior-consecutive-low-overweight-cycles <count from the lookback above> --min-low-conviction-cycles <conviction_trim.min_low_conviction_cycles>`
-and use its JSON output directly (`overweight_pct`, `qualifies_this_cycle`,
-`consecutive_cycles`, `triggered`, `trim_dollar_amount`, `action`) rather
-than recomputing any of it.
-
-**If the script fails to run**, treat it like a stop-loss/take-profit
-script failure: `entries_halted = true` for new entries/top-ups this
-cycle, exclude this position from any sell decision, and log `"stage":
-"conviction_trim"` with `"triggered": false, "action":
-"halt_entries_check_manually", "notes": "conviction_trim.py failed to
-run — verify this position manually before next cycle"`.
-
-If `triggered` is true: sell `trim_dollar_amount` worth of the position
-(round to a quantity the broker accepts), down to `target_size`. Log
-`"stage": "conviction_trim"` with the script's `overweight_pct`,
-`consecutive_cycles`, `trim_dollar_amount`, `"triggered": true, "action":
-"sell_partial_position"` — executed immediately below, in this step's
-sell-execution pass, never blocked by a loss-limit halt, same as
-stop-loss/take-profit. If
-`triggered` is false, log one line with the script's `overweight_pct`,
-`qualifies_this_cycle`, `consecutive_cycles`, `"action": "hold_monitor"`.
-Applies only to **held** positions — never a **new**-group candidate,
-which has no existing position to be overweight in.
+## Step 5 — Sell-side execution
 
 **Execute sells now — every stop-loss trigger, fired take-profit tier,
 conviction-trim trigger, and Step 4's `exit_existing` candidates:** run
@@ -423,7 +420,7 @@ which is expected — this pull only matters once `execution.mode` is
 
 **No same-cycle sell-then-buy**: if a symbol's stop-loss fired, any
 take-profit tier fired, or a conviction-trim fired earlier this cycle
-(Step 5), it is not eligible for a top-up this same cycle, regardless
+(Step 4), it is not eligible for a top-up this same cycle, regardless
 of thesis or conviction — drop it from the **held** group before the
 merged priority order below, logging
 `"stage": "risk_check", "passed": false, "position_action": "top_up", "reason": "stop-loss/take-profit fired this cycle — not eligible for a same-cycle top-up"`.
@@ -538,8 +535,8 @@ entry.
 Append every decision to `trade_log.jsonl` — one JSON line each:
 `stop_loss`, `take_profit`, `conviction_trim`, `loss_limit_check`, `risk_check` (pass/fail,
 including Step 4's weekend-gap rejections and buy-gate rejections
-(price-gap, extension, wash-sale, sell re-entry lock) and Step 5's top-up
-evaluations), and `order` stages, matching the shape already in
+(price-gap, extension, wash-sale, sell re-entry lock) and Step 6's
+top-up evaluations), and `order` stages, matching the shape already in
 `trade_log.jsonl`/`trade_log_template.jsonl`. Top-up entries must include
 `"position_action": "top_up"`.
 
