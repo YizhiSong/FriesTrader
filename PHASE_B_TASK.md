@@ -42,14 +42,13 @@ Do not add, remove, or loosen any gate condition on your own judgment.
      `>= execution.dry_run_min_cycles_before_live` before the
      live-order gate (Step 5 for sells, Step 6 for buys) can open.
 
-## Step 4 — Re-verify proposals against fresh opening data
+## Step 4 — Determine sells and re-verify buy candidates
 
-**Stop-loss check (always runs, independent of new candidates):** Pull
-current `get_equity_positions` and fresh `get_equity_quotes` for every
-open position.
-
-**Gather inputs, then let the script decide — do not hand-compute the
-reference price, drawdown, stdev, or clamp.** For each position:
+**Stop-loss check (always runs, independent of new candidates):**
+Gather inputs, then let the script decide — do not hand-compute the
+reference price, drawdown, stdev, or clamp. For each open position:
+- Pull current `get_equity_positions` and a fresh `get_equity_quotes`
+  price.
 - Check `trade_log.jsonl` for whether any `take_profit` tier has fired
   for this position's current holding period (same "since quantity
   last reached zero" scope as the take-profit check below).
