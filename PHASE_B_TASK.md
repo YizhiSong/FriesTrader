@@ -45,9 +45,10 @@ judgment.
 ## Step 4 — Re-verify proposals against fresh opening data
 
 **Resolve sells and classify candidates (do this first):**
-1. Run Step 5's stop-loss and take-profit checks now (pull
-   `get_equity_positions` and fresh quotes, resolve any triggered sells) —
-   needed before knowing current slot occupancy.
+1. Run Step 5's stop-loss, take-profit, and conviction-trim checks now
+   (pull `get_equity_positions` and fresh quotes, resolve any triggered
+   sells) — needed before knowing current slot occupancy and before
+   this step's buy gate can correctly evaluate same-cycle sells.
 2. Process any `direction: "exit_existing"` candidates now too (through
    the staleness check below, then to Step 6 as a sell) — selling is
    never gated.
@@ -91,14 +92,105 @@ hours. **If today is Monday**:
 
 Other weekdays: skip straight to the price-based check.
 
-### Price-based staleness check (every day)
+### Buy gate (every day)
+
+**Buys only — new entries and top-ups; never applies to
+stop_loss/take_profit/conviction_trim/exit_existing sells, which are
+never gated on price or tax considerations.** One script call answers
+every independent, per-symbol condition that can block this candidate;
+`position_sizing.py`'s slot/cash allocation across the whole candidate
+list is a separate, later check (Step 5) since it depends on other
+candidates, not just this one.
 
 Pull a fresh quote (`get_equity_quotes`) — re-verify against this
-morning's open, not Phase A's prior-close price. If the price gapped
-significantly, re-check against the thesis's `invalidation` criteria —
-same sourcing rules as above, cite whatever explains the gap in a
-`"sources"` field on the resulting log line; if the gap plausibly
-invalidates it, drop it as above.
+morning's open, not Phase A's prior-close price.
+
+**Gather inputs, then let the script decide — do not hand-compute any
+gap, average, or lock condition:**
+- `--fresh-ask`: this morning's fresh `ask`.
+- `--thesis-price`: Phase A's thesis-time `current_price`.
+- `--daily-closes`: the last `entry_extension.lookback_trading_days`
+  trading days of daily closes via `get_equity_historicals`
+  (interval=day, split-adjusted; request ~30 calendar days back to
+  cover weekends/holidays, drop any `interpolated: true` bars).
+- Wash-sale inputs, only if `wash_sale_avoidance.enabled` is `true`
+  (pass `--wash-sale-enabled` and `--wash-sale-lookback-days
+  <wash_sale_avoidance.lookback_window_days>`; omit both otherwise):
+  for every account number in `wash_sale_avoidance.linked_accounts`,
+  call `get_pnl_trade_history` filtered to this symbol and collect the
+  dates of any closing trade realizing a negative gain, as
+  `--loss-sale-dates <comma-separated ISO dates>` (omit if none
+  found). Also pass `--today <today's date, ISO>`.
+- Sell re-entry lock inputs, only if `trade_log.jsonl` has this
+  symbol's most recent sell `order` entry (`stop_loss`, `take_profit`,
+  `conviction_trim`, or `exit_existing`) and it actually executed —
+  confirm via `get_equity_positions` that quantity is genuinely lower
+  than immediately before that logged sell, or the position was fully
+  closed and re-opened since. A `dry_run` sell never actually reduces
+  the position, so if quantity is unchanged there was no real
+  reduction and these inputs should be omitted entirely (evaluate the
+  symbol normally). If it did execute, pass `--last-sell-reason
+  <reason>`, `--last-sell-price <that entry's quote_bid>`,
+  `--last-sell-date <that entry's date>`; for `take_profit` or
+  `conviction_trim` reasons only, also pass
+  `--reentry-lock-max-trading-days <take_profit's or
+  conviction_trim's reentry_lock_max_trading_days, matching the
+  reason>` and `--trading-days-since-sell <trading days elapsed since
+  that sell date>`.
+
+Run:
+`python3 scripts/entry_gate.py --fresh-ask <ask> --thesis-price
+<thesis current_price> --entry-price-gap-max-pct
+<entry_price_gap.max_pct> --daily-closes <comma-separated closes>
+--max-extension-pct <entry_extension.max_extension_pct>
+[--wash-sale-enabled --wash-sale-lookback-days <N> --loss-sale-dates
+<dates>] --today <date> [--last-sell-reason <reason> --last-sell-price
+<price> --last-sell-date <date> [--reentry-lock-max-trading-days <N>
+--trading-days-since-sell <N>]]`
+and use its JSON output (`entry_price_gap`, `entry_extension`,
+`wash_sale_avoidance`, `sell_reentry_lock`, `passed`,
+`blocking_conditions`, `action`) directly rather than recomputing any
+of it.
+
+**If the script fails to run**, do not guess a result — skip the buy
+this cycle and log `"stage": "risk_check", "passed": false,
+"proposal_date": "<candidate's date>", "reason": "entry_gate.py failed
+to run — buy skipped this cycle, verify manually"`.
+
+**If `passed` is false**, skip the buy this cycle regardless of how
+strong the thesis still reads — mechanical, not a judgment call, same
+as a stop-loss. The candidate isn't blacklisted, just re-evaluated
+fresh on the next Phase A run (or, for the re-entry lock, once its own
+clearing condition is met). Log one `"stage": "risk_check", "passed":
+false, "proposal_date": "<candidate's date>"` line per entry in
+`blocking_conditions`, using the matching reason text:
+- `entry_price_gap`: `"reason": "price gapped <gap_pct>% above
+  thesis-time price ($<thesis-price> -> $<fresh-ask>), exceeds
+  entry_price_gap.max_pct (<threshold>) -- buy skipped this cycle"`
+- `entry_extension`: `"reason": "price <extension_pct>% above its
+  <N>-day average ($<moving_avg> -> $<fresh-ask>), exceeds
+  entry_extension.max_extension_pct (<threshold>) -- buy skipped this
+  cycle"`
+- `wash_sale_avoidance`: `"reason": "wash sale guard -- <symbol> was
+  sold at a loss within the <lookback_window_days>-day wash-sale
+  window (<matching_loss_sale_date>)"` (add `"position_action":
+  "top_up"` if it's a top-up candidate)
+- `sell_reentry_lock`: `"reason": "sell re-entry lock — current price
+  <fresh-ask> is above the <last-sell-price> it was sold at on
+  <last-sell-date> (reason: <last-sell-reason>)"` (for a `take_profit`
+  or `conviction_trim` lock still active only on the time condition,
+  append `", N of <max> trading days elapsed"`)
+
+**If `passed` is true but `entry_price_gap.gap_pct` is still
+non-trivial**, re-check against the thesis's `invalidation` criteria —
+same sourcing rules as Phase A's thesis `sources` field (prefer
+primary/major-outlet sources; cite whatever you used), citing whatever
+explains the gap in a `"sources"` field on the resulting log line; if
+it plausibly invalidates the thesis even under the hard ceiling, drop
+it — log `"stage": "risk_check", "passed": false, "proposal_date":
+"<candidate's date>", "reason": "weekend news invalidated thesis: <what
+you found>", "sources": ["Outlet Name: https://..."]`, same as the
+weekend-gap check above.
 
 ## Step 5 — Mechanical risk enforcement
 
@@ -193,8 +285,44 @@ check above still applies to it. Tiers become eligible again only
 after the position is fully closed to zero shares and a new entry is
 later opened (a genuinely new holding period, not a top-up).
 
-**No same-cycle sell-then-buy**: if a symbol's stop-loss fired or any
-take-profit tier fired earlier in this same cycle, it is not eligible
+**Conviction-trim check (held positions only, mechanical rebalance-down):**
+Skip entirely if `risk_rules.json`'s `conviction_trim.enabled` is `false`.
+Otherwise, for every **held** position, using this cycle's fresh
+`conviction` and `target_size` (from the same inputs gathered for the
+priority-order ranking below — pull those first if not yet available),
+look back through this symbol's `risk_check` entries in `trade_log.jsonl`,
+most recent first, and count consecutive entries (not including this
+cycle, and not crossing back over a prior full exit to zero) where
+`conviction == "low"` and `current_position_value` exceeded `target_size`
+by more than `conviction_trim.overweight_trigger_pct`.
+
+Run:
+`python3 scripts/conviction_trim.py --conviction <this cycle's conviction> --current-position-value <current_position_value> --target-size <target_size> --overweight-trigger-pct <conviction_trim.overweight_trigger_pct> --prior-consecutive-low-overweight-cycles <count from the lookback above> --min-low-conviction-cycles <conviction_trim.min_low_conviction_cycles>`
+and use its JSON output directly (`overweight_pct`, `qualifies_this_cycle`,
+`consecutive_cycles`, `triggered`, `trim_dollar_amount`, `action`) rather
+than recomputing any of it.
+
+**If the script fails to run**, treat it like a stop-loss/take-profit
+script failure: `entries_halted = true` for new entries/top-ups this
+cycle, exclude this position from any sell decision, and log `"stage":
+"conviction_trim"` with `"triggered": false, "action":
+"halt_entries_check_manually", "notes": "conviction_trim.py failed to
+run — verify this position manually before next cycle"`.
+
+If `triggered` is true: sell `trim_dollar_amount` worth of the position
+(round to a quantity the broker accepts), down to `target_size`. Log
+`"stage": "conviction_trim"` with the script's `overweight_pct`,
+`consecutive_cycles`, `trim_dollar_amount`, `"triggered": true, "action":
+"sell_partial_position"`, and treat it as a Step 6 sell candidate — never
+blocked by a loss-limit halt, same as stop-loss/take-profit. If
+`triggered` is false, log one line with the script's `overweight_pct`,
+`qualifies_this_cycle`, `consecutive_cycles`, `"action": "hold_monitor"`.
+Applies only to **held** positions — never a **new**-group candidate,
+which has no existing position to be overweight in.
+
+**No same-cycle sell-then-buy**: if a symbol's stop-loss fired, any
+take-profit tier fired, or a conviction-trim fired earlier in this same
+cycle, it is not eligible
 for a top-up this same cycle, regardless of thesis or conviction — drop
 it from the **held** group before the merged priority order below,
 logging
@@ -202,62 +330,12 @@ logging
 This applies unconditionally (dry_run or live) since it's about not
 producing a self-contradictory sell-and-buy decision within one cycle,
 not about whether the sell actually executed. It's a normal top-up
-candidate again starting next cycle (subject to the sell re-entry lock
-below).
-
-**Sell re-entry lock — price-gated, not time-gated, any sell type**:
-check `trade_log.jsonl` for this symbol's most recent `"stage": "order"`
-entry whose `reason` is any sell (`stop_loss`, `take_profit`, or
-`exit_existing`). This lock only applies if that sell actually
-executed — confirm via `get_equity_positions` that its quantity is
-genuinely lower than it was immediately before that logged sell (or the
-position was fully closed and re-opened since). A `dry_run` sell entry
-never actually reduces the position, so if `get_equity_positions` still
-shows the same (or higher) quantity as before that logged sell, there
-was no real reduction from it and the lock does not apply — the symbol
-should be evaluated normally (e.g. a top-up), not dropped. When the sell
-did actually execute and no later `order` entry for that symbol shows a
-buy since, the symbol is locked out of any new buy (new entry or
-top-up) — including later in this same cycle — until a fresh quote is
-**at or below** the price it was sold at (that entry's `quote_bid`), no
-matter how many cycles or days have passed, and regardless of thesis
-quality or conviction. This exists to prevent buying back into a symbol
-at a worse price than you just sold it at, whatever the reason for that
-sell — averaging up right after trimming or exiting undermines the
-whole point of it. Before ranking, pull a fresh quote for any candidate
-with an unresolved (actually-executed) sell lock and drop it from the
-merged priority order below if the fresh price is above that sell
-price — log it as its own line rather than silently omitting it:
-`"stage": "risk_check", "passed": false, "proposal_date": "<candidate's date from pending_proposals.jsonl>", "reason": "sell re-entry lock — current price <X> is above the <Y> it was sold at on <date> (reason: <stop_loss|take_profit|exit_existing>)"`.
-Once the fresh price is at or below that sell price, the lock clears and
-it's eligible again as a normal candidate through Phase A's usual
-screening — no separate time-based cooldown on top of this.
-
-**Wash-sale guard (buys only) — cross-account, calendar-gated, separate
-from the price-gated lock above:** if `risk_rules.json`'s
-`wash_sale_avoidance.enabled` is `false`, skip this guard entirely and
-proceed as if it doesn't exist. If `true`: before approving any
-**new**-group or **held**-group (top-up) candidate, check every account
-number in `wash_sale_avoidance.linked_accounts` (not just this account)
-for a closing sale of that symbol realizing a loss within the last
-`lookback_window_days` days — call `get_pnl_trade_history` per linked
-account, filtered to the symbol, and look for any closing trade with a
-negative realized gain dated inside the window. This is independent of
-and in addition to the sell re-entry lock above: that lock is
-price-gated and scoped to this account only; this guard is
-calendar-gated and spans every linked account, because the IRS
-wash-sale rule applies per taxpayer across all accounts a person
-controls, not per account and not per price. If a matching loss sale
-turns up in **any** linked account, drop the candidate before ranking —
-log
-`"stage": "risk_check", "passed": false, "reason": "wash sale guard -- <symbol> was sold at a loss in account <account_number> on <date>, within the <lookback_window_days>-day wash-sale window"`
-(add `"position_action": "top_up"` if it's a top-up candidate). This
-guard never applies to stop_loss/take_profit/exit_existing sells —
-selling is never gated by tax considerations, only buying is (see the
-flag-only check just below for the sell side).
+candidate again starting next cycle (subject to Step 4's buy gate,
+including the sell re-entry lock).
 
 **Wash-sale flag on sells (informational only, never blocks a sell):**
-whenever the stop-loss check triggers, a take-profit tier fires, or an
+whenever the stop-loss check triggers, a take-profit tier fires, a
+conviction-trim fires, or an
 `exit_existing` sell is processed, and that specific sale realizes a
 loss (a stop-loss sell is always a loss by definition; check
 take-profit/`exit_existing` case by case against the fill), check the
@@ -378,7 +456,7 @@ Step 6 as a sell.
 ## Step 6 — Dry run before anything live (order review and the live-order gate)
 
 For every candidate that passed Step 5 (stop-loss, take-profit,
-exit_existing sells, and approved top-ups):
+conviction-trim, exit_existing sells, and approved top-ups):
 
 1. **Always** call `review_equity_order` first — a preview, never places
    anything.
@@ -425,8 +503,9 @@ idempotency check matches against either a `risk_check` or `order` entry.
 ## Step 7 — Logging
 
 Append every decision to `trade_log.jsonl` — one JSON line each:
-`stop_loss`, `take_profit`, `loss_limit_check`, `risk_check` (pass/fail,
-including Step 4's weekend-gap/price-gap rejections and Step 5's top-up
+`stop_loss`, `take_profit`, `conviction_trim`, `loss_limit_check`, `risk_check` (pass/fail,
+including Step 4's weekend-gap rejections and buy-gate rejections
+(price-gap, extension, wash-sale, sell re-entry lock) and Step 5's top-up
 evaluations), and `order` stages, matching the shape already in
 `trade_log.jsonl`/`trade_log_template.jsonl`. Top-up entries must include
 `"position_action": "top_up"`.

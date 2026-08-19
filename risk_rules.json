@@ -69,7 +69,16 @@
       {"gain_pct": 0.30, "sell_fraction_of_position": 0.25},
       {"gain_pct": 0.50, "sell_fraction_of_position": 0.25}
     ],
-    "note": "Tiered partial take-profit, not a single full-exit threshold. Every open position must have this checked on every cycle, independent of any new thesis about the stock — this account is short-term oriented, not buy-and-hold. A good new narrative does not cancel a take-profit tier any more than it cancels a stop-loss. Each tier fires once (per holding period, i.e. since the position last closed to zero) when gain first reaches it, selling sell_fraction_of_position of the position's quantity at that moment — see PHASE_B_TASK.md Step 5 for the exact mechanics. After all three tiers have fired, the remaining quantity is held long indefinitely; only the stop-loss still applies to it."
+    "reentry_lock_max_trading_days": 10,
+    "note": "Tiered partial take-profit, not a single full-exit threshold. Every open position must have this checked on every cycle, independent of any new thesis about the stock — this account is short-term oriented, not buy-and-hold. A good new narrative does not cancel a take-profit tier any more than it cancels a stop-loss. Each tier fires once (per holding period, i.e. since the position last closed to zero) when gain first reaches it, selling sell_fraction_of_position of the position's quantity at that moment — see PHASE_B_TASK.md Step 5 for the exact mechanics. After all three tiers have fired, the remaining quantity is held long indefinitely; only the stop-loss still applies to it. A take_profit sell's re-entry lock also auto-clears after reentry_lock_max_trading_days trading days, unlike stop_loss/exit_existing sells which lock indefinitely on price alone."
+  },
+
+  "conviction_trim": {
+    "enabled": true,
+    "overweight_trigger_pct": 0.25,
+    "min_low_conviction_cycles": 3,
+    "reentry_lock_max_trading_days": 10,
+    "note": "Trims a held position to its conviction-tier target once conviction has been 'low' for min_low_conviction_cycles consecutive cycles and the overage exceeds overweight_trigger_pct -- see scripts/conviction_trim.py. Re-entry lock is time-bound like take_profit, not indefinite like stop_loss."
   },
 
   "loss_limits": {
@@ -82,5 +91,17 @@
     "note": "Toggle only -- set enabled to false to turn this guard off entirely; no other change needed. IRS wash-sale rule applies per taxpayer across ALL accounts, not per account, so this checks linked_accounts, not just account_number. Blocks BUYS only (new entries and top-ups) -- never blocks a stop_loss/take_profit/exit_existing sell, since risk management must never bend to a tax outcome; those sells are instead logged with a wash-sale flag if one applies, for the human's own tax tracking. This cannot prevent a wash sale caused by a purchase made LATER in another linked account after an agentic-account sell -- those accounts are outside this pipeline's control; only the human can avoid that side.",
     "lookback_window_days": 30,
     "linked_accounts": ["YOUR_ACCOUNT_NUMBER_HERE", "YOUR_OTHER_ACCOUNT_NUMBER_HERE"]
+  },
+
+  "entry_price_gap": {
+    "max_pct": 0.03,
+    "note": "Hard ceiling on buys -- a gap this large skips the buy this cycle even if the thesis still reads fine, same principle as a stop-loss. Never applies to sells. Checked in Phase B Step 4 (price-based staleness check), before Step 5's risk enforcement -- not part of the execution.mode live-order gate."
+  },
+
+  "entry_extension": {
+    "enabled": true,
+    "lookback_trading_days": 20,
+    "max_extension_pct": 0.10,
+    "note": "Hard ceiling on buys -- skips the buy this cycle if current_price is more than max_extension_pct above its own lookback_trading_days-day moving average, same principle as entry_price_gap. Never applies to sells."
   }
 }
