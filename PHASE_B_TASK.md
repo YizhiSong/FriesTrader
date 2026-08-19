@@ -8,11 +8,11 @@ Performs **Steps 4–7**, consuming candidates from Phase A's
 `pending_proposals.jsonl`.
 
 Authorized to place real live orders under a narrow condition (see Step
-6's "Live-order gate"). **That authorization must be given explicitly, in
-advance, by whoever operates this pipeline — after being warned that an
-unattended scheduled task has no human confirmation at the moment of
-execution.** Do not add, remove, or loosen any gate condition on your own
-judgment.
+5's "Live-order gate" — Step 6 reuses the identical gate for buys).
+**That authorization must be given explicitly, in advance, by whoever
+operates this pipeline — after being warned that an unattended
+scheduled task has no human confirmation at the moment of execution.**
+Do not add, remove, or loosen any gate condition on your own judgment.
 
 ## Step 0 — Load state (do this first, every run)
 
@@ -39,8 +39,8 @@ judgment.
      `cycle_summary` entry where `mode: dry_run` — not raw entry count
      (same-day reruns count once). This represents validated days, not
      executions, and must be
-     `>= execution.dry_run_min_cycles_before_live` before Step 6's
-     live-order gate can open.
+     `>= execution.dry_run_min_cycles_before_live` before the
+     live-order gate (Step 5 for sells, Step 6 for buys) can open.
 
 ## Step 4 — Re-verify proposals against fresh opening data
 
@@ -50,8 +50,8 @@ judgment.
    sells) — needed before knowing current slot occupancy and before
    this step's buy gate can correctly evaluate same-cycle sells.
 2. Process any `direction: "exit_existing"` candidates now too (through
-   the staleness check below, then to Step 6 as a sell) — selling is
-   never gated.
+   the staleness check below, then into Step 5's sell-execution pass) —
+   selling is never gated.
 3. Split remaining `direction: "long"` candidates:
    - **new**: not a live open position — a genuine new entry, the only
      kind that consumes a slot.
@@ -61,7 +61,10 @@ judgment.
 4. `open_slots = max_concurrent_positions - (live positions per
    get_equity_positions, excluding sells just resolved)`. Only **new**
    candidates consume a slot; fixed for the cycle unless one gets
-   approved in Step 5.
+   approved in Step 5. **This is a preliminary estimate** for this
+   step's own short-circuit only — Step 5 re-pulls live positions after
+   sells actually execute and uses that as the authoritative count for
+   ranking/sizing.
 5. **If `open_slots <= 0`**: no **new** candidate can be approved this
    cycle. Skip the weekend-gap search, staleness check, and Step 5 work
    for every **new**-group candidate — log instead:
@@ -192,7 +195,7 @@ it — log `"stage": "risk_check", "passed": false, "proposal_date":
 you found>", "sources": ["Outlet Name: https://..."]`, same as the
 weekend-gap check above.
 
-## Step 5 — Mechanical risk enforcement
+## Step 5 — Mechanical risk enforcement, sell execution, and buy sizing
 
 **Stop-loss check (always runs, independent of new candidates):** Pull
 current `get_equity_positions` and fresh `get_equity_quotes` for every
@@ -242,14 +245,16 @@ with the script's `stop_pct_used`, `stop_reference_basis`, and
 `stop_reference_price` (plus, when trailing, `trailing_high_since`);
 when `stop_pct_used` is null, log the script's own `"notes": "gain,
 stop not computed"` as-is. Include `stdev_20d`/`fallback_reason` when
-present. If triggered, treat as a Step 6 sell candidate. A good thesis
-never cancels a stop-loss — see `risk_rules.json`'s note.
+present. If triggered, it's executed immediately below, in this step's
+sell-execution pass. A good thesis never cancels a stop-loss — see
+`risk_rules.json`'s note.
 
 **Take-profit check (always runs, independent of new candidates, tiered
 partial sells)**: Using the same pull as the stop-loss check (no need to
 call again — average cost, quantity, and fresh price as they stood at
-the start of Step 5, before any of this cycle's sells execute in Step
-6), check `trade_log.jsonl` for `"stage": "take_profit"` entries for
+the start of Step 5, before any of this cycle's sells execute further
+down in this same step), check `trade_log.jsonl` for `"stage":
+"take_profit"` entries for
 this symbol at each tier's exact `gain_pct`, logged since the
 position's quantity last reached zero (a full exit) — collect the
 `gain_pct` values already fired this holding period.
@@ -275,9 +280,10 @@ If `fired_this_cycle` is non-empty: log one line per entry in it
 "tier_gain_pct"`, `"sell_fraction"`, `"quantity_before"`,
 `"quantity_sold"` straight from that entry, plus the script's
 top-level `"gain_pct"` and `"tiers_status"`, `"triggered": true,
-"action": "sell_partial_position"` — and treat each as its own Step 6
-sell candidate. No thesis review, never blocked by a loss-limit halt
-(it's an exit, not a new entry). If `fired_this_cycle` is empty, log
+"action": "sell_partial_position"` — each fired tier is executed
+immediately below, in this step's sell-execution pass. No thesis
+review, never blocked by a loss-limit halt (it's an exit, not a new
+entry). If `fired_this_cycle` is empty, log
 one line with the script's `gain_pct` and `tiers_status`, `"triggered":
 false, "action": "hold_monitor"`. Once all three tiers have fired, the
 remaining quantity is held long indefinitely — only the stop-loss
@@ -313,8 +319,9 @@ If `triggered` is true: sell `trim_dollar_amount` worth of the position
 (round to a quantity the broker accepts), down to `target_size`. Log
 `"stage": "conviction_trim"` with the script's `overweight_pct`,
 `consecutive_cycles`, `trim_dollar_amount`, `"triggered": true, "action":
-"sell_partial_position"`, and treat it as a Step 6 sell candidate — never
-blocked by a loss-limit halt, same as stop-loss/take-profit. If
+"sell_partial_position"` — executed immediately below, in this step's
+sell-execution pass, never blocked by a loss-limit halt, same as
+stop-loss/take-profit. If
 `triggered` is false, log one line with the script's `overweight_pct`,
 `qualifies_this_cycle`, `consecutive_cycles`, `"action": "hold_monitor"`.
 Applies only to **held** positions — never a **new**-group candidate,
@@ -332,6 +339,54 @@ producing a self-contradictory sell-and-buy decision within one cycle,
 not about whether the sell actually executed. It's a normal top-up
 candidate again starting next cycle (subject to Step 4's buy gate,
 including the sell re-entry lock).
+
+**Execute sells now — every stop-loss trigger, fired take-profit tier,
+conviction-trim trigger, and Step 4's `exit_existing` candidates:** run
+this procedure for each, before touching anything buy-side below — a
+sell must actually clear before its freed cash/slot can be counted
+toward a same-cycle buy, and before today's realized P&L (loss-limit
+check, further down) can see it.
+
+1. **Always** call `review_equity_order` first — a preview, never places
+   anything.
+2. If it surfaces a blocking alert, do not proceed to placement
+   regardless of mode; log the alert verbatim and treat as rejected.
+3. Otherwise, branch on `execution.mode` (fresh from Step 0) and the
+   dry-run cycle count:
+
+   **Live-order gate — ALL must be true:**
+   - `execution.mode == "live"`
+   - dry-run cycle count `>= execution.dry_run_min_cycles_before_live`
+   - `review_equity_order` for this order returned no blocking alert
+
+   - **Gate open**: call `place_equity_order` with the reviewed
+     parameters. Then confirm the real fill before logging — the
+     `place_equity_order` response alone is not enough (it typically
+     returns `order_state: "unconfirmed"`, not the actual outcome):
+     1. Call `get_equity_orders` with this `order_id`.
+     2. If `state` is terminal (`filled`, `partially_filled`,
+        `cancelled`, `rejected`, `failed`, `voided`), use it.
+     3. Otherwise wait ~15 seconds and check once more; use whatever
+        `state` comes back, terminal or not — never poll more than
+        twice or block the cycle waiting for a fill.
+     Log `"stage": "order", "mode": "live", "placed": true, "order_id":
+     "<id>", "order_state": "<confirmed state from get_equity_orders>",
+     "fill_price": <average_price if filled/partially_filled, else
+     null>, "fill_quantity": <cumulative_quantity if filled/partially_filled,
+     else null>` in addition to the pre-trade `quote_bid`/`quantity`
+     estimate already logged (not in place of it) — the log should show
+     both the estimate and the confirmed real outcome.
+   - `execution.mode == "dry_run"`: log
+     `"stage": "order", "mode": "dry_run", "would_execute": true"` and stop.
+     **Never call `place_equity_order` here.**
+   - `execution.mode == "live"` but cycle count still under threshold: do
+     **not** place. Log
+     `"stage": "order", "mode": "live_blocked_insufficient_cycles", "would_execute": true, "placed": false"`
+     with current vs. required count.
+
+Never invent/guess a field value — if a tool call fails, log the
+failure and skip that candidate. Every `order` entry must carry
+`proposal_date` (Step 0's idempotency key).
 
 **Wash-sale flag on sells (informational only, never blocks a sell):**
 whenever the stop-loss check triggers, a take-profit tier fires, a
@@ -367,6 +422,16 @@ off). Note the asymmetry this can't fix: a sell logged clean today can
 still become a wash sale later if a linked account buys the same symbol
 afterward — that's outside this pipeline's visibility and control.
 
+**Re-pull fresh account state (now reflects this cycle's executed
+sells, not an estimate):** call `get_portfolio` (for `total_value` and
+`cash`) and `get_equity_positions` (for the live open position count)
+again — the earlier pull, and Step 4's `open_slots` estimate, are now
+stale for any sell that actually executed above. Use these fresh
+values for the loss-limit check and candidate sizing below. In
+`dry_run` mode these won't have changed (nothing real executed),
+which is expected — this pull only matters once `execution.mode` is
+`"live"`.
+
 **Loss-limit halt check (always runs, gates all new entries and top-ups):**
 Call `get_realized_pnl` span=day and span=week (asset_classes=[equity])
 for today's and this week's realized `total_returns` in dollars (0 if no
@@ -392,12 +457,12 @@ inputs below and let the scripts decide.**
 disclosed none — an omitted key and an empty array mean different
 things to the ranking script below), `pct_below_52wk_high` (omit if
 not available), `group` (`"new"` or `"held"`), and — for **held**
-candidates only — `current_position_value` (quantity from
-`get_equity_positions` × fresh price from `get_equity_quotes`). Also
-gather live `total_value` and `cash` from `get_portfolio` (`cash` is
-the starting `cash_remaining`), and `concurrent_positions_start` (the
-live open position count per Step 4's `open_slots` calc, before this
-cycle's approvals).
+candidates only — `current_position_value` (quantity from the fresh
+re-pulled `get_equity_positions` above × fresh price from
+`get_equity_quotes`). Also use the re-pulled `total_value` and `cash`
+from `get_portfolio` above (`cash` is the starting `cash_remaining`),
+and `concurrent_positions_start` (the re-pulled live open position
+count above, not Step 4's preliminary `open_slots` estimate).
 
 Rank the candidates, then size them — pipe the candidate list (a JSON
 array) through both scripts in sequence (directly chainable):
@@ -450,55 +515,24 @@ key) and, for `direction: "long"`, `risk_flags` and `pct_below_52wk_high`
 `direction: "avoid"` candidates aren't processed further (already logged
 in Phase A). `direction: "exit_existing"` candidates for a held symbol
 skip all the checks above (selling reduces risk — not blocked by
-position/concurrency/cash-buffer/loss-limit checks) and go straight to
-Step 6 as a sell.
+position/concurrency/cash-buffer/loss-limit checks) and go straight
+into this step's "Execute sells now" pass above.
 
-## Step 6 — Dry run before anything live (order review and the live-order gate)
+## Step 6 — Order review and the live-order gate (approved buys)
 
-For every candidate that passed Step 5 (stop-loss, take-profit,
-conviction-trim, exit_existing sells, and approved top-ups):
+Sells already executed in Step 5, before loss-limit and sizing math
+ran — this step is buy-only. For every candidate Step 5's
+ranking/sizing approved (new entries and top-ups), in ranked order, run
+the exact same review → live-order-gate → place → confirm procedure as
+Step 5's "Execute sells now" above (`review_equity_order` first, the
+same Live-order gate conditions, the same fill-confirmation and logging
+shape) — with one difference: the pre-trade estimate logged alongside
+each order is `quote_ask`/`quantity` here (a buy fills near the ask),
+not the `quote_bid` used for sells.
 
-1. **Always** call `review_equity_order` first — a preview, never places
-   anything.
-2. If it surfaces a blocking alert, do not proceed to placement regardless
-   of mode; log the alert verbatim and treat as rejected.
-3. Otherwise, branch on `execution.mode` (fresh from Step 0) and the
-   dry-run cycle count:
-
-   **Live-order gate — ALL must be true:**
-   - `execution.mode == "live"`
-   - dry-run cycle count `>= execution.dry_run_min_cycles_before_live`
-   - `review_equity_order` for this order returned no blocking alert
-
-   - **Gate open**: call `place_equity_order` with the reviewed
-     parameters. Then confirm the real fill before logging — the
-     `place_equity_order` response alone is not enough (it typically
-     returns `order_state: "unconfirmed"`, not the actual outcome):
-     1. Call `get_equity_orders` with this `order_id`.
-     2. If `state` is terminal (`filled`, `partially_filled`,
-        `cancelled`, `rejected`, `failed`, `voided`), use it.
-     3. Otherwise wait ~15 seconds and check once more; use whatever
-        `state` comes back, terminal or not — never poll more than
-        twice or block the cycle waiting for a fill.
-     Log `"stage": "order", "mode": "live", "placed": true, "order_id":
-     "<id>", "order_state": "<confirmed state from get_equity_orders>",
-     "fill_price": <average_price if filled/partially_filled, else
-     null>, "fill_quantity": <cumulative_quantity if filled/partially_filled,
-     else null>` in addition to the pre-trade `quote_ask`/`quantity`
-     estimate already logged (not in place of it) — the log should show
-     both the estimate and the confirmed real outcome.
-   - `execution.mode == "dry_run"`: log
-     `"stage": "order", "mode": "dry_run", "would_execute": true"` and stop.
-     **Never call `place_equity_order` here.**
-   - `execution.mode == "live"` but cycle count still under threshold: do
-     **not** place. Log
-     `"stage": "order", "mode": "live_blocked_insufficient_cycles", "would_execute": true, "placed": false"`
-     with current vs. required count.
-
-Never change `execution.mode` yourself. Never invent/guess a field value —
-if a tool call fails, log the failure and skip that candidate. Every
-`order` entry must carry `proposal_date` (same as Step 5) — Step 0's
-idempotency check matches against either a `risk_check` or `order` entry.
+Never change `execution.mode` yourself. Every `order` entry must carry
+`proposal_date` (same as Step 5) — Step 0's idempotency check matches
+against either a `risk_check` or `order` entry.
 
 ## Step 7 — Logging
 
@@ -542,12 +576,13 @@ ever disagree, trust `trade_log.jsonl`.
 ## Hard rules
 
 - Never change `execution.mode` or any `risk_rules.json` value.
-- Never call `place_equity_order` unless Step 6's live-order gate is open
-  at that moment.
+- Never call `place_equity_order` unless the live-order gate (Step 5 for
+  sells, Step 6 for buys — same conditions) is open at that moment.
 - A "high conviction" thesis never overrides a failed mechanical check.
 - If required data can't be retrieved (portfolio, positions, P&L history),
   fail safe — treat the check as failed/halt new entries — and log exactly
   what failed.
-- The wash-sale guard (Step 5) only ever blocks a buy. It must never
-  block, delay, or resize a stop_loss/take_profit/exit_existing sell —
-  a tax outcome never overrides risk management.
+- The wash-sale guard (Step 4's buy gate) only ever blocks a buy. It
+  must never block, delay, or resize a
+  stop_loss/take_profit/conviction_trim/exit_existing sell — a tax
+  outcome never overrides risk management.
