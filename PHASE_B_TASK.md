@@ -170,24 +170,23 @@ never blocked by a loss-limit halt, same as stop-loss/take-profit. If
 Applies only to **held** positions — never a **new**-group candidate,
 which has no existing position to be overweight in.
 
-**Classify candidates:**
-1. Process any `direction: "exit_existing"` candidates now too — into
-   Step 5's sell-execution pass. Selling is never gated.
-2. Split remaining `direction: "long"` candidates, using this
-   snapshot's `get_equity_positions` (before this cycle's sells
-   execute):
-   - **new**: not a live open position — a genuine new entry, the only
-     kind that consumes a slot.
-   - **held**: already a live open position — a potential top-up
-     (Step 6). Top-ups never consume a slot and are always considered
-     regardless of account fullness.
+**Classify candidates:** `exit_existing` candidates (Phase A's
+recommendation to sell a currently-held position) go straight into
+Step 5's sell-execution pass — selling is never gated. Split the
+remaining `direction: "long"` candidates, using this snapshot's
+`get_equity_positions` (before this cycle's sells execute), into:
+- **new**: not a live open position — a genuine new entry, the only
+  kind that consumes a slot.
+- **held**: already a live open position — a potential top-up
+  (Step 6). Top-ups never consume a slot and are always considered
+  regardless of account fullness.
 
-   **This classification stays fixed for the rest of the cycle**, even
-   if a same-cycle sell later empties the position — otherwise a
-   symbol whose stop-loss fires this cycle would silently shift from
-   **held** to **new** by the time Step 6 runs, and Step 6's
-   same-cycle sell-then-buy guard (which operates on the **held**
-   group) would no longer find it there.
+**This classification stays fixed for the rest of the cycle**, even
+if a same-cycle sell later empties the position — otherwise a
+symbol whose stop-loss fires this cycle would silently shift from
+**held** to **new** by the time Step 6 runs, and Step 6's
+same-cycle sell-then-buy guard (which operates on the **held**
+group) would no longer find it there.
 
 ## Step 5 — Sell-side execution
 
