@@ -42,14 +42,38 @@ Do not add, remove, or loosen any gate condition on your own judgment.
      `>= execution.dry_run_min_cycles_before_live` before the
      live-order gate (Step 5 for sells, Step 6 for buys) can open.
 
-## Step 4 — Determine sells and re-verify buy candidates
+## Step 4 — Classify candidates and determine sells
+
+### Classify candidates
+
+Pull `get_equity_positions` — this snapshot, taken before any of this
+cycle's sells execute, is also what the stop-loss/take-profit checks
+below use.
+
+`direction: "avoid"` candidates aren't processed further (already
+logged in Phase A). `exit_existing` candidates (Phase A's
+recommendation to sell a currently-held position) go straight into
+Step 5's sell-execution pass — selling is never gated. Split the
+remaining `direction: "long"` candidates, using this snapshot, into:
+- **new**: not a live open position — a genuine new entry, the only
+  kind that consumes a slot.
+- **held**: already a live open position — a potential top-up
+  (Step 6). Top-ups never consume a slot and are always considered
+  regardless of account fullness.
+
+**This classification stays fixed for the rest of the cycle**, even
+if a same-cycle sell later empties the position — otherwise a
+symbol whose stop-loss fires this cycle would silently shift from
+**held** to **new** by the time Step 6 runs, and Step 6's
+same-cycle sell-then-buy guard (which operates on the **held**
+group) would no longer find it there.
 
 ### Stop-loss check (always runs, independent of new candidates)
 
 Gather inputs, then let the script decide — do not hand-compute the
-reference price, drawdown, stdev, or clamp. For each open position:
-- Pull current `get_equity_positions` and a fresh `get_equity_quotes`
-  price.
+reference price, drawdown, stdev, or clamp. For each open position
+(the snapshot pulled above):
+- Pull a fresh `get_equity_quotes` price.
 - Check `trade_log.jsonl` for whether any `take_profit` tier has fired
   for this position's current holding period (same "since quantity
   last reached zero" scope as the take-profit check below).
@@ -181,28 +205,6 @@ by a loss-limit halt, same as stop-loss/take-profit. Log `"stage":
 
 Applies only to **held** positions — never a **new**-group candidate,
 which has no existing position to be overweight in.
-
-### Classify candidates
-
-`direction: "avoid"` candidates aren't processed further (already
-logged in Phase A). `exit_existing` candidates (Phase A's
-recommendation to sell a currently-held position) go straight into
-Step 5's sell-execution pass — selling is never gated. Split the
-remaining `direction: "long"` candidates, using this snapshot's
-`get_equity_positions` (before this cycle's sells
-execute), into:
-- **new**: not a live open position — a genuine new entry, the only
-  kind that consumes a slot.
-- **held**: already a live open position — a potential top-up
-  (Step 6). Top-ups never consume a slot and are always considered
-  regardless of account fullness.
-
-**This classification stays fixed for the rest of the cycle**, even
-if a same-cycle sell later empties the position — otherwise a
-symbol whose stop-loss fires this cycle would silently shift from
-**held** to **new** by the time Step 6 runs, and Step 6's
-same-cycle sell-then-buy guard (which operates on the **held**
-group) would no longer find it there.
 
 ## Step 5 — Sell-side execution
 
