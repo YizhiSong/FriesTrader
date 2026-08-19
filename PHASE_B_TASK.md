@@ -44,7 +44,8 @@ Do not add, remove, or loosen any gate condition on your own judgment.
 
 ## Step 4 — Determine sells and re-verify buy candidates
 
-**Stop-loss check (always runs, independent of new candidates):**
+### Stop-loss check (always runs, independent of new candidates)
+
 Gather inputs, then let the script decide — do not hand-compute the
 reference price, drawdown, stdev, or clamp. For each open position:
 - Pull current `get_equity_positions` and a fresh `get_equity_quotes`
@@ -96,8 +97,9 @@ sell-execution pass. A good thesis never cancels a stop-loss — see
   `stop_pct_used` is null
 - `stdev_20d`/`fallback_reason`, when present
 
-**Take-profit check (always runs, independent of new candidates, tiered
-partial sells)**: Using the same pull as the stop-loss check (no need to
+### Take-profit check (always runs, independent of new candidates, tiered partial sells)
+
+Using the same pull as the stop-loss check (no need to
 call again — average cost, quantity, and fresh price as they stood at
 the start of this step, before any of this cycle's sells execute in
 Step 5), check `trade_log.jsonl` for `"stage": "take_profit"` entries
@@ -140,7 +142,8 @@ Tiers become eligible again only after the position is fully closed to
 zero shares and a new entry is later opened (a genuinely new holding
 period, not a top-up).
 
-**Conviction-trim check (held positions only, mechanical rebalance-down):**
+### Conviction-trim check (held positions only, mechanical rebalance-down)
+
 Skip entirely if `risk_rules.json`'s `conviction_trim.enabled` is `false`.
 Otherwise, for every **held** position, using this cycle's fresh
 `conviction` and `target_size` (from the same inputs gathered for Step
@@ -179,12 +182,14 @@ by a loss-limit halt, same as stop-loss/take-profit. Log `"stage":
 Applies only to **held** positions — never a **new**-group candidate,
 which has no existing position to be overweight in.
 
-**Classify candidates:** `direction: "avoid"` candidates aren't
-processed further (already logged in Phase A). `exit_existing`
-candidates (Phase A's recommendation to sell a currently-held
-position) go straight into Step 5's sell-execution pass — selling is
-never gated. Split the remaining `direction: "long"` candidates, using
-this snapshot's `get_equity_positions` (before this cycle's sells
+### Classify candidates
+
+`direction: "avoid"` candidates aren't processed further (already
+logged in Phase A). `exit_existing` candidates (Phase A's
+recommendation to sell a currently-held position) go straight into
+Step 5's sell-execution pass — selling is never gated. Split the
+remaining `direction: "long"` candidates, using this snapshot's
+`get_equity_positions` (before this cycle's sells
 execute), into:
 - **new**: not a live open position — a genuine new entry, the only
   kind that consumes a slot.
