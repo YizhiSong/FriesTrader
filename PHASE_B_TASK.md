@@ -55,7 +55,7 @@ Do not add, remove, or loosen any gate condition on your own judgment.
 3. Split remaining `direction: "long"` candidates:
    - **new**: not a live open position — a genuine new entry, the only
      kind that consumes a slot.
-   - **held**: already a live open position — a potential top-up (Step 5).
+   - **held**: already a live open position — a potential top-up (Step 6).
      Top-ups never consume a slot and are always considered regardless of
      account fullness.
 4. `open_slots = max_concurrent_positions - (live positions per
@@ -102,7 +102,7 @@ stop_loss/take_profit/conviction_trim/exit_existing sells, which are
 never gated on price or tax considerations.** One script call answers
 every independent, per-symbol condition that can block this candidate;
 `position_sizing.py`'s slot/cash allocation across the whole candidate
-list is a separate, later check (Step 5) since it depends on other
+list is a separate, later check (Step 6) since it depends on other
 candidates, not just this one.
 
 Pull a fresh quote (`get_equity_quotes`) — re-verify against this
@@ -195,7 +195,7 @@ it — log `"stage": "risk_check", "passed": false, "proposal_date":
 you found>", "sources": ["Outlet Name: https://..."]`, same as the
 weekend-gap check above.
 
-## Step 5 — Mechanical risk enforcement, sell execution, and buy sizing
+## Step 5 — Sell-side risk enforcement and execution
 
 **Stop-loss check (always runs, independent of new candidates):** Pull
 current `get_equity_positions` and fresh `get_equity_quotes` for every
@@ -327,19 +327,6 @@ stop-loss/take-profit. If
 Applies only to **held** positions — never a **new**-group candidate,
 which has no existing position to be overweight in.
 
-**No same-cycle sell-then-buy**: if a symbol's stop-loss fired, any
-take-profit tier fired, or a conviction-trim fired earlier in this same
-cycle, it is not eligible
-for a top-up this same cycle, regardless of thesis or conviction — drop
-it from the **held** group before the merged priority order below,
-logging
-`"stage": "risk_check", "passed": false, "position_action": "top_up", "reason": "stop-loss/take-profit fired this cycle — not eligible for a same-cycle top-up"`.
-This applies unconditionally (dry_run or live) since it's about not
-producing a self-contradictory sell-and-buy decision within one cycle,
-not about whether the sell actually executed. It's a normal top-up
-candidate again starting next cycle (subject to Step 4's buy gate,
-including the sell re-entry lock).
-
 **Execute sells now — every stop-loss trigger, fired take-profit tier,
 conviction-trim trigger, and Step 4's `exit_existing` candidates:** run
 this procedure for each, before touching anything buy-side below — a
@@ -427,10 +414,24 @@ sells, not an estimate):** call `get_portfolio` (for `total_value` and
 `cash`) and `get_equity_positions` (for the live open position count)
 again — the earlier pull, and Step 4's `open_slots` estimate, are now
 stale for any sell that actually executed above. Use these fresh
-values for the loss-limit check and candidate sizing below. In
-`dry_run` mode these won't have changed (nothing real executed),
+values for the loss-limit check and candidate sizing in Step 6 below.
+In `dry_run` mode these won't have changed (nothing real executed),
 which is expected — this pull only matters once `execution.mode` is
 `"live"`.
+
+## Step 6 — Buy-side risk enforcement, sizing, and execution
+
+**No same-cycle sell-then-buy**: if a symbol's stop-loss fired, any
+take-profit tier fired, or a conviction-trim fired earlier this cycle
+(Step 5), it is not eligible for a top-up this same cycle, regardless
+of thesis or conviction — drop it from the **held** group before the
+merged priority order below, logging
+`"stage": "risk_check", "passed": false, "position_action": "top_up", "reason": "stop-loss/take-profit fired this cycle — not eligible for a same-cycle top-up"`.
+This applies unconditionally (dry_run or live) since it's about not
+producing a self-contradictory sell-and-buy decision within one cycle,
+not about whether the sell actually executed. It's a normal top-up
+candidate again starting next cycle (subject to Step 4's buy gate,
+including the sell re-entry lock).
 
 **Loss-limit halt check (always runs, gates all new entries and top-ups):**
 Call `get_realized_pnl` span=day and span=week (asset_classes=[equity])
@@ -516,23 +517,21 @@ key) and, for `direction: "long"`, `risk_flags` and `pct_below_52wk_high`
 in Phase A). `direction: "exit_existing"` candidates for a held symbol
 skip all the checks above (selling reduces risk — not blocked by
 position/concurrency/cash-buffer/loss-limit checks) and go straight
-into this step's "Execute sells now" pass above.
+into Step 5's "Execute sells now" pass.
 
-## Step 6 — Order review and the live-order gate (approved buys)
-
-Sells already executed in Step 5, before loss-limit and sizing math
-ran — this step is buy-only. For every candidate Step 5's
-ranking/sizing approved (new entries and top-ups), in ranked order, run
-the exact same review → live-order-gate → place → confirm procedure as
-Step 5's "Execute sells now" above (`review_equity_order` first, the
-same Live-order gate conditions, the same fill-confirmation and logging
-shape) — with one difference: the pre-trade estimate logged alongside
-each order is `quote_ask`/`quantity` here (a buy fills near the ask),
-not the `quote_bid` used for sells.
+**Execute approved buys:** for every candidate the sizing above
+approved (new entries and top-ups), in ranked order, run the exact
+same review → live-order-gate → place → confirm procedure as Step 5's
+"Execute sells now" (`review_equity_order` first, the same Live-order
+gate conditions, the same fill-confirmation and logging shape) — with
+one difference: the pre-trade estimate logged alongside each order is
+`quote_ask`/`quantity` here (a buy fills near the ask), not the
+`quote_bid` used for sells.
 
 Never change `execution.mode` yourself. Every `order` entry must carry
-`proposal_date` (same as Step 5) — Step 0's idempotency check matches
-against either a `risk_check` or `order` entry.
+`proposal_date` (same as this step's `risk_check` entries) — Step 0's
+idempotency check matches against either a `risk_check` or `order`
+entry.
 
 ## Step 7 — Logging
 

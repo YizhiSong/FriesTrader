@@ -102,6 +102,9 @@ scheduled time.)
 - `scripts/` — the deterministic risk-math engines Phase B runs instead
   of hand-computing anything, each a standalone Python 3 script (stdlib
   only, no dependencies) you can run and inspect on its own:
+  - `entry_gate.py` — every independent, per-symbol condition that can
+    block a buy (price-gap ceiling, moving-average extension ceiling,
+    wash-sale avoidance, sell re-entry lock), in one script call.
   - `pnl_pct.py` — daily/weekly loss-limit % against `starting_capital_usd`,
     and the entries-halted decision.
   - `stop_loss.py` — the fixed or volatility-scaled stop_pct (clamped,
@@ -110,6 +113,9 @@ scheduled time.)
   - `take_profit.py` — tiered partial-exit firing, cascading quantity
     correctly when a single cycle's gain jumps past more than one
     not-yet-fired tier at once.
+  - `conviction_trim.py` — mechanically trims a held position back to
+    its conviction-tier target after several consecutive
+    low-conviction, overweight cycles.
   - `rank_candidates.py` — the conviction / risk_flags / pct_below_52wk_high
     priority sort new entries and top-ups compete on.
   - `position_sizing.py` — position/top-up sizing and the concurrency/
@@ -117,7 +123,9 @@ scheduled time.)
 
   Each takes plain CLI args, prints one JSON object, and is meant to be
   read from directly rather than re-derived — see `PHASE_B_TASK.md`
-  Step 5 for the exact call shape of each.
+  Steps 4–6 for the exact call shape of each (`entry_gate.py` in Step 4;
+  `stop_loss.py`/`take_profit.py`/`conviction_trim.py` in Step 5;
+  `pnl_pct.py`/`rank_candidates.py`/`position_sizing.py` in Step 6).
 - `PHASE_A_TASK.md` / `PHASE_B_TASK.md` — the full, self-contained spec
   each phase follows.
 - `trade_log_template.jsonl` — the log line shapes; real logs accumulate

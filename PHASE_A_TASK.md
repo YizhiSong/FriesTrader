@@ -258,14 +258,14 @@ run's sourced research already found (no extra searches):
 - `"leadership_turnover"` — a C-suite departure/replacement in the last
   ~90 days tied to operational or execution problems (not routine
   succession).
-Empty array (`[]`) if none apply. Used by Phase B (Step 5) as the
+Empty array (`[]`) if none apply. Used by Phase B (Step 6) as the
 primary within-tier tie-break, ahead of `pct_below_52wk_high`.
 
 **Include `pct_below_52wk_high`** for every `direction: "long"` candidate:
 `(high_52_weeks - current_price) / high_52_weeks` (e.g. `0.15`).
 `high_52_weeks` from Step 1's `get_equity_fundamentals` call,
 `current_price` from Step 1's `get_equity_quotes` call. Used by
-Phase B (Step 5) as the secondary within-tier tie-break, after
+Phase B (Step 6) as the secondary within-tier tie-break, after
 `risk_flags` — a disclosed "room in the setup" proxy, not a fair-value
 calc. Omit for `avoid`/`exit_existing`.
 
