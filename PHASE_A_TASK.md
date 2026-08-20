@@ -46,7 +46,7 @@ Pull current prices for the capped candidate list via `get_equity_quotes`
 `current_price` in Steps 2–3.
 
 Pull price history per candidate via `get_equity_historicals`
-(`interval="day"`, spanning the last ~210 calendar days — enough to
+(`interval="day"`, spanning the last ~300 calendar days — enough to
 cover a `trend_filter_lookback_trading_days`-bar moving average plus
 buffer for weekends/holidays), fresh every run. This same series is
 reused in Step 2 for the 60-day price-move signal and in the trend-filter
