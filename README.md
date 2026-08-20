@@ -204,11 +204,11 @@ improvements.
    created and populated in your Robinhood account, and review every
    other threshold — the defaults here are illustrative, not a
    recommendation.
-3. Create a scan via the Robinhood MCP's `create_scan` tool (relative
-   volume > 2.0x, market cap above your `min_market_cap_usd`), then paste
-   its ID into `universe.supplementary_scan_id`. Phase A calls this scan
-   every run to surface movers outside your watchlist — left as the
-   placeholder, that call fails every cycle.
+3. Create a scan via the Robinhood MCP's `create_scan` tool — whatever
+   screening conditions you like — then paste its ID into
+   `universe.supplementary_scan_id`. Phase A calls this scan every run
+   to surface movers outside your watchlist — left as the placeholder,
+   that call fails every cycle.
 4. Fill in `wash_sale_avoidance.linked_accounts` with every Robinhood
    account number you personally control, not just this one — if this is
    genuinely the only account you trade in, a single-entry list (just

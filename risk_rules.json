@@ -16,7 +16,7 @@
     "watchlist_max_candidates": 25,
     "supplementary_scan_id": "YOUR_SCAN_ID_HERE",
     "supplementary_scan_max_candidates": 5,
-    "supplementary_scan_note": "Robinhood scan -- relative volume > 2.0x (30d) and market cap > min_market_cap_usd, matching signal_thresholds.volume_spike_multiple and this same block's own min_market_cap_usd rather than separate numbers. Additive to watchlist_max_candidates, not shared with it -- the watchlist's own slots are never crowded out by scan results. Create your own scan (relative volume + market cap filters) via the Robinhood MCP's create_scan tool and paste its scan_id here. Scan config has no upper market-cap bound; max_market_cap_usd still applies to its results via Phase A's post-merge filtering.",
+    "supplementary_scan_note": "Robinhood scan -- define whatever screening conditions you like (relative volume, market cap, RSI, etc.) via the Robinhood MCP's create_scan tool, then paste its scan_id here. Additive to watchlist_max_candidates, not shared with it -- the watchlist's own slots are never crowded out by scan results.",
 
     "min_avg_daily_volume": 1000000,
     "min_market_cap_usd": 2000000000,
