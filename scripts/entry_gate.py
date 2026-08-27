@@ -37,6 +37,10 @@ def main():
                     choices=["stop_loss", "take_profit", "conviction_trim", "exit_existing"])
     p.add_argument("--last-sell-price", type=float)
     p.add_argument("--last-sell-date", type=parse_date)
+    p.add_argument("--last-sell-was-gain", choices=["true", "false"],
+                    help="required with --last-sell-reason: did that sale close above "
+                         "average cost (gain -- time-bound lock) or below it (loss -- "
+                         "indefinite lock)?")
     p.add_argument("--reentry-lock-max-trading-days", type=int)
     p.add_argument("--trading-days-since-sell", type=int)
 
@@ -82,14 +86,18 @@ def main():
             print(json.dumps({"error": "--last-sell-price and --last-sell-date required "
                                         "with --last-sell-reason"}), file=sys.stderr)
             sys.exit(1)
+        if args.last_sell_was_gain is None:
+            print(json.dumps({"error": "--last-sell-was-gain required with "
+                                        "--last-sell-reason"}), file=sys.stderr)
+            sys.exit(1)
         price_locked = args.fresh_ask > args.last_sell_price
-        if args.last_sell_reason in ("stop_loss", "exit_existing"):
+        if args.last_sell_was_gain == "false":
             reentry_locked = price_locked
         else:
             if args.reentry_lock_max_trading_days is None or args.trading_days_since_sell is None:
                 print(json.dumps({"error": "--reentry-lock-max-trading-days and "
                                             "--trading-days-since-sell required for a "
-                                            "time-bound lock reason"}), file=sys.stderr)
+                                            "gain-closed sell"}), file=sys.stderr)
                 sys.exit(1)
             time_cleared = args.trading_days_since_sell >= args.reentry_lock_max_trading_days
             reentry_locked = price_locked and not time_cleared
@@ -97,6 +105,7 @@ def main():
             "reason": args.last_sell_reason,
             "sell_price": args.last_sell_price,
             "sell_date": args.last_sell_date.isoformat(),
+            "last_sell_was_gain": args.last_sell_was_gain,
             "price_condition_locked": price_locked,
             "trading_days_since_sell": args.trading_days_since_sell,
             "reentry_lock_max_trading_days": args.reentry_lock_max_trading_days,

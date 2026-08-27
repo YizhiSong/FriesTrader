@@ -69,16 +69,19 @@
       {"gain_pct": 0.30, "sell_fraction_of_position": 0.25},
       {"gain_pct": 0.50, "sell_fraction_of_position": 0.25}
     ],
-    "reentry_lock_max_trading_days": 10,
-    "note": "Tiered partial take-profit, not a single full-exit threshold. Every open position must have this checked on every cycle, independent of any new thesis about the stock — this account is short-term oriented, not buy-and-hold. A good new narrative does not cancel a take-profit tier any more than it cancels a stop-loss. Each tier fires once (per holding period, i.e. since the position last closed to zero) when gain first reaches it, selling sell_fraction_of_position of the position's quantity at that moment — see PHASE_B_TASK.md Step 5 for the exact mechanics. After all three tiers have fired, the remaining quantity is held long indefinitely; only the stop-loss still applies to it. A take_profit sell's re-entry lock also auto-clears after reentry_lock_max_trading_days trading days, unlike stop_loss/exit_existing sells which lock indefinitely on price alone."
+    "note": "Tiered partial take-profit, not a single full-exit threshold. Every open position must have this checked on every cycle, independent of any new thesis about the stock — this account is short-term oriented, not buy-and-hold. A good new narrative does not cancel a take-profit tier any more than it cancels a stop-loss. Each tier fires once (per holding period, i.e. since the position last closed to zero) when gain first reaches it, selling sell_fraction_of_position of the position's quantity at that moment — see PHASE_B_TASK.md Step 5 for the exact mechanics. After all three tiers have fired, the remaining quantity is held long indefinitely; only the stop-loss still applies to it. See sell_reentry_lock for re-entry lock behavior."
   },
 
   "conviction_trim": {
     "enabled": true,
     "overweight_trigger_pct": 0.25,
     "min_low_conviction_cycles": 3,
-    "reentry_lock_max_trading_days": 10,
-    "note": "Trims a held position to its conviction-tier target once conviction has been 'low' for min_low_conviction_cycles consecutive cycles and the overage exceeds overweight_trigger_pct -- see scripts/conviction_trim.py. Re-entry lock is time-bound like take_profit, not indefinite like stop_loss."
+    "note": "Trims a held position to its conviction-tier target once conviction has been 'low' for min_low_conviction_cycles consecutive cycles and the overage exceeds overweight_trigger_pct -- see scripts/conviction_trim.py. See sell_reentry_lock for re-entry lock behavior."
+  },
+
+  "sell_reentry_lock": {
+    "gain_close_max_trading_days": 10,
+    "note": "Applies uniformly to every sell (stop_loss, take_profit, conviction_trim, exit_existing), not per-reason: a sell that closed at a gain vs. average cost locks re-entry for gain_close_max_trading_days trading days regardless of price; a sell that closed at a loss locks indefinitely on price alone, until price drops back below the sale price. See scripts/entry_gate.py."
   },
 
   "loss_limits": {

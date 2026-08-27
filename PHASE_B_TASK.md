@@ -382,22 +382,24 @@ gap, average, or lock condition:**
   dates of any closing trade realizing a negative gain, as
   `--loss-sale-dates <comma-separated ISO dates>` (omit if none
   found). Also pass `--today <today's date, ISO>`.
-- Sell re-entry lock inputs, only if `trade_log.jsonl` has this
-  symbol's most recent sell `order` entry (`stop_loss`, `take_profit`,
-  `conviction_trim`, or `exit_existing`) and it actually executed —
-  confirm via `get_equity_positions` that quantity is genuinely lower
-  than immediately before that logged sell, or the position was fully
-  closed and re-opened since. A `dry_run` sell never actually reduces
-  the position, so if quantity is unchanged there was no real
-  reduction and these inputs should be omitted entirely (evaluate the
-  symbol normally). If it did execute, pass `--last-sell-reason
-  <reason>`, `--last-sell-price <that entry's quote_bid>`,
-  `--last-sell-date <that entry's date>`; for `take_profit` or
-  `conviction_trim` reasons only, also pass
-  `--reentry-lock-max-trading-days <take_profit's or
-  conviction_trim's reentry_lock_max_trading_days, matching the
-  reason>` and `--trading-days-since-sell <trading days elapsed since
-  that sell date>`.
+- Sell re-entry lock inputs, whenever `trade_log.jsonl` has this
+  symbol's most recent `order` entry as a sell and it actually
+  executed — confirm via `get_equity_positions` that quantity is
+  genuinely lower than immediately before that logged sell, or the
+  position was fully closed and re-opened since. A `dry_run` sell
+  never actually reduces the position, so if quantity is unchanged
+  there was no real reduction and these inputs should be omitted
+  entirely (evaluate the symbol normally). If it did execute, pass
+  `--last-sell-reason <reason>`, `--last-sell-price <that entry's
+  quote_bid>`, `--last-sell-date <that entry's date>`, and
+  `--last-sell-was-gain <true|false>` — that entry's `fill_price`
+  compared to the position's average cost at the time of the sale
+  (the same cycle's `stop_loss` or `take_profit` stage entry for this
+  symbol logs that average cost as `entry_price`). If the sale closed
+  at a gain, also pass `--reentry-lock-max-trading-days
+  <sell_reentry_lock.gain_close_max_trading_days>` and
+  `--trading-days-since-sell <trading days elapsed since that sell
+  date>`.
 
 Run:
 `python3 scripts/entry_gate.py --fresh-ask <ask> --thesis-price
@@ -406,8 +408,8 @@ Run:
 --max-extension-pct <entry_extension.max_extension_pct>
 [--wash-sale-enabled --wash-sale-lookback-days <N> --loss-sale-dates
 <dates>] --today <date> [--last-sell-reason <reason> --last-sell-price
-<price> --last-sell-date <date> [--reentry-lock-max-trading-days <N>
---trading-days-since-sell <N>]]`
+<price> --last-sell-date <date> --last-sell-was-gain <true|false>
+[--reentry-lock-max-trading-days <N> --trading-days-since-sell <N>]]`
 and use its JSON output (`entry_price_gap`, `entry_extension`,
 `wash_sale_avoidance`, `sell_reentry_lock`, `passed`,
 `blocking_conditions`, `action`) directly rather than recomputing any
@@ -438,9 +440,9 @@ false, "proposal_date": "<candidate's date>"` line per entry in
   "top_up"` if it's a top-up candidate)
 - `sell_reentry_lock`: `"reason": "sell re-entry lock — current price
   <fresh-ask> is above the <last-sell-price> it was sold at on
-  <last-sell-date> (reason: <last-sell-reason>)"` (for a `take_profit`
-  or `conviction_trim` lock still active only on the time condition,
-  append `", N of <max> trading days elapsed"`)
+  <last-sell-date> (reason: <last-sell-reason>)"` (for a gain-closed
+  sell still locked only on the time condition, append `", N of <max>
+  trading days elapsed"`)
 
 **If `passed` is true but `entry_price_gap.gap_pct` is still
 non-trivial**, re-check against the thesis's `invalidation` criteria —
