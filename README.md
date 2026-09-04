@@ -77,15 +77,58 @@ graph TD
     L -- plain-English recap --> REC[trade_log_recent.md]
 ```
 
-- **Phase A** (Steps 1–3, ~4:30pm Central weekdays) — screens candidates
-  from your watchlist plus a supplementary market scan, gathers signals,
-  writes a logged thesis per candidate to `pending_proposals.jsonl`.
-  Places no orders, not even dry-run ones.
-  Full spec: `PHASE_A_TASK.md`.
-- **Phase B** (Steps 4–9, ~8:35am Central weekdays) — re-verifies Phase A's
-  proposals against fresh opening data, enforces `risk_rules.json`
-  mechanically, and dry-runs or (gated) places orders. Full spec:
-  `PHASE_B_TASK.md`.
+Only one step is a judgment call — the Phase A thesis. Every filter,
+ranking, and size is a deterministic script.
+
+**Phase A — screen and write a thesis** (Steps 1–3, ~4:30pm Central
+weekdays; spec `PHASE_A_TASK.md`). Places no orders.
+
+1. **Universe.** Start with your watchlist (up to
+   `universe.watchlist_max_candidates`), plus up to
+   `universe.supplementary_scan_max_candidates` movers from your saved
+   Robinhood scan, plus every position you currently hold. Remove anything
+   failing the `universe` filters in `risk_rules.json` — volume,
+   market-cap band, minimum price, leveraged/inverse ETFs, price below its
+   200-day moving average. Held positions are always kept.
+2. **Signal gate.** A candidate is researched only if it meets **any one**
+   of `signal_thresholds`: a 60-day price move, a volume spike, or a price
+   near its 52-week high or low. The rest are logged `no_signal` with no
+   thesis. Held positions are always researched.
+3. **Thesis.** The model runs a news search and writes a line to
+   `pending_proposals.jsonl`: `direction` (`long` / `avoid` /
+   `exit_existing`), `conviction` (`high` / `medium` / `low`, against a
+   fixed rubric so the same facts give the same rating), `risk_flags`, and
+   percent below the 52-week high. This is the stock selection.
+
+**Phase B — re-verify, enforce the rules, place orders** (Steps 4–9,
+~8:35am Central weekdays; spec `PHASE_B_TASK.md`). Decides which `long`
+candidates are bought:
+
+- **Re-verify.** Re-check each proposal against the opening price. Run all
+  sells (stop-loss, take-profit, `exit_existing`) before any buy.
+- **Buy gate** (`entry_gate.py`). The buy is skipped this cycle if the
+  price is more than `entry_price_gap.max_pct` above the thesis price,
+  more than `entry_extension.max_extension_pct` above its 20-day average,
+  or under a wash-sale or sell-re-entry lock.
+- **Rank** (`rank_candidates.py`). By conviction, then fewer `risk_flags`,
+  then larger percent below the 52-week high.
+- **Size** (`position_sizing.py`). In ranked order, each candidate is
+  bought at its conviction-tier size (a fixed percent of the account)
+  until `max_concurrent_positions` or the `min_cash_buffer_pct` floor is
+  reached.
+
+Every decision is logged to `trade_log.jsonl`. Some cycles buy nothing.
+
+**Example.** `EXAMPLE` is on your watchlist at $40, a $15B-cap trading
+above its 200-day average, so it passes the universe filters. It is up 16%
+over 60 days, so it meets the price-move threshold and gets a news search;
+the model finds a confirmed earnings beat, no risk flags, and rates it
+`high` conviction, `long`. Next morning it opens at $40.60, within all
+buy-gate limits, and is the only `high`-conviction candidate, so it ranks
+first. `high` is 20% of the account: on $500 that is a $100 buy, placed if
+the cash buffer holds. Had it opened at $42 — 5% above the thesis price,
+over the `entry_price_gap.max_pct` limit — the buy would be skipped that
+cycle.
 
 Both are designed to run as cloud-hosted scheduled agent sessions,
 independent of any local machine — each run clones this repo fresh and
@@ -102,9 +145,8 @@ scheduled time.)
 - `scripts/` — the deterministic risk-math engines Phase B runs instead
   of hand-computing anything, each a standalone Python 3 script (stdlib
   only, no dependencies) you can run and inspect on its own:
-  - `entry_gate.py` — every independent, per-symbol condition that can
-    block a buy (price-gap ceiling, moving-average extension ceiling,
-    wash-sale avoidance, sell re-entry lock), in one script call.
+  - `entry_gate.py` — the buy gate above, every blocking condition in one
+    call.
   - `pnl_pct.py` — daily/weekly loss-limit % against `starting_capital_usd`,
     and the entries-halted decision.
   - `stop_loss.py` — the fixed or volatility-scaled stop_pct (clamped,
@@ -116,9 +158,9 @@ scheduled time.)
   - `conviction_trim.py` — mechanically trims a held position back to
     its conviction-tier target after several consecutive
     low-conviction, overweight cycles.
-  - `rank_candidates.py` — the conviction / risk_flags / pct_below_52wk_high
-    priority sort new entries and top-ups compete on.
-  - `position_sizing.py` — position/top-up sizing and the concurrency/
+  - `rank_candidates.py` — the ranking above (conviction, `risk_flags`,
+    `pct_below_52wk_high`); new entries and top-ups compete on one list.
+  - `position_sizing.py` — the sizing above, plus concurrency and
     cash-buffer checks, compounding running totals down the ranked list.
 
   Each takes plain CLI args, prints one JSON object, and is meant to be
