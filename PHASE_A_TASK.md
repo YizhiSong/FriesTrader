@@ -200,12 +200,39 @@ conviction for the same symbol.
     analyst opinion, technical pattern, or sector/macro-wide move, and
     not still pending/anticipated (e.g. "ahead of earnings" caps at
     `medium` no matter how bullish/bearish the setup sounds).
+  - **For a non-held candidate**, that event is recent — its confirming
+    date (earnings date, signing, approval, disclosure) is within the
+    last 15 trading days. Older facts can still support a `medium` (they
+    haven't expired), but a weeks-old catalyst the market has already
+    absorbed can't carry a fresh-money `high`. **Held positions are
+    exempt** — a still-valid catalyst can sustain a `high` on an existing
+    holding regardless of age.
   - The thesis explicitly names the strongest available counter-evidence
     (a plausible positive if bearish, a plausible negative if bullish)
     and gives a concrete reason it doesn't change the read — silence on
     the counter-case, or listing it without resolving it, doesn't
     qualify. ("...regardless of X" / "even though X" / "even with X" —
     not just piling on more confirming evidence.)
+    - The counter-case must be **fundamental or structural** — a
+      competitive threat, a demand/margin risk, an execution risk, a
+      balance-sheet or liquidity concern, a regulatory/legal exposure.
+      **Valuation and price action alone don't qualify** as the sole
+      counter-case for `high`: "already up X%," "priced for perfection,"
+      "rich multiple," "near its 52-week high," or a stale/split analyst
+      rating are not the strongest available counter-evidence. If that is
+      genuinely all that can be raised against the thesis, the real bear
+      case hasn't been engaged — cap at `medium`.
+    - "Analysts raised targets after the print" does not resolve a
+      counter-case — sell-side targets following a stock upward aren't
+      independent confirmation. Resolve it on the company's own disclosed
+      fundamentals.
+  - At least one cited source is **primary or wire** — a company filing
+    or press release, a regulatory/court document, or a wire service
+    (Reuters, AP, Bloomberg, Dow Jones). Aggregator or content-farm
+    write-ups (StockStory, StockTitan, Webull, stockanalysis.com, Simply
+    Wall St, law-firm blogs, and similar) can support the narrative but
+    can't be the sole basis for a `high`. If no primary/wire source for
+    the catalyst can be found, cap at `medium`.
   - `risk_flags` is empty (see below).
   - No unresolved binary catalyst (earnings date, court ruling,
     regulatory deadline) falls before this position's next likely
@@ -225,7 +252,8 @@ conviction for the same symbol.
   catalyst exists and doesn't hit a `low` disqualifier, but the catalyst
   is still pending, or multiple contributing factors are listed without
   one clearly resolved as dominant, or no counter-case is explicitly
-  engaged and dismissed.
+  engaged and dismissed (a valuation- or price-action-only counter-case
+  counts as none here).
 
 **For a held position**, `direction` is `"long"` (still supports holding)
 or `"exit_existing"` (no longer does) — never `"avoid"` (that's only for
@@ -277,7 +305,11 @@ trusted. Prefer primary sources (company filings/press releases, wire
 services like Reuters/AP) and major outlets (Bloomberg, WSJ, CNBC, etc.)
 over aggregator/content-farm sites when both turn up in the same search;
 if only a lower-tier source is available, use it and cite it rather than
-omitting the field.
+omitting the field. A `high`-conviction thesis additionally requires at
+least one primary or wire source (see the `high` rubric): for a confirmed
+earnings, deal, or approval catalyst the company's own release or an
+8-K/press wire is almost always available — cite it directly rather than a
+secondary write-up of it.
 
 ## Output
 
