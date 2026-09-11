@@ -175,11 +175,12 @@ Otherwise, for every **held** position, using this cycle's fresh
 look back through this symbol's `risk_check` entries in `trade_log.jsonl`,
 most recent first, and count consecutive entries (not including this
 cycle, and not crossing back over a prior full exit to zero) where
-`conviction == "low"` and `current_position_value` exceeded `target_size`
-by more than `conviction_trim.overweight_trigger_pct`.
+`conviction != "high"` (i.e. `"low"` or `"medium"`) and
+`current_position_value` exceeded `target_size` by more than
+`conviction_trim.overweight_trigger_pct`.
 
 Run:
-`python3 scripts/conviction_trim.py --conviction <this cycle's conviction> --current-position-value <current_position_value> --target-size <target_size> --overweight-trigger-pct <conviction_trim.overweight_trigger_pct> --prior-consecutive-low-overweight-cycles <count from the lookback above> --min-low-conviction-cycles <conviction_trim.min_low_conviction_cycles>`
+`python3 scripts/conviction_trim.py --conviction <this cycle's conviction> --current-position-value <current_position_value> --target-size <target_size> --overweight-trigger-pct <conviction_trim.overweight_trigger_pct> --prior-consecutive-overweight-cycles <count from the lookback above> --min-overweight-conviction-cycles <conviction_trim.min_overweight_conviction_cycles>`
 and use its JSON output directly (`overweight_pct`, `qualifies_this_cycle`,
 `consecutive_cycles`, `triggered`, `trim_dollar_amount`, `action`) rather
 than recomputing any of it.

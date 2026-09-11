@@ -157,7 +157,7 @@ scheduled time.)
     not-yet-fired tier at once.
   - `conviction_trim.py` — mechanically trims a held position back to
     its conviction-tier target after several consecutive
-    low-conviction, overweight cycles.
+    below-high-conviction, overweight cycles.
   - `rank_candidates.py` — the ranking above (conviction, `risk_flags`,
     `pct_below_52wk_high`); new entries and top-ups compete on one list.
   - `position_sizing.py` — the sizing above, plus concurrency and

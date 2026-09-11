@@ -75,8 +75,8 @@
   "conviction_trim": {
     "enabled": true,
     "overweight_trigger_pct": 0.25,
-    "min_low_conviction_cycles": 3,
-    "note": "Trims a held position to its conviction-tier target once conviction has been 'low' for min_low_conviction_cycles consecutive cycles and the overage exceeds overweight_trigger_pct -- see scripts/conviction_trim.py. See sell_reentry_lock for re-entry lock behavior."
+    "min_overweight_conviction_cycles": 3,
+    "note": "Trims a held position to its conviction-tier target once conviction has been 'low' or 'medium' (i.e. not 'high') for min_overweight_conviction_cycles consecutive cycles and the overage exceeds overweight_trigger_pct -- see scripts/conviction_trim.py. See sell_reentry_lock for re-entry lock behavior."
   },
 
   "sell_reentry_lock": {

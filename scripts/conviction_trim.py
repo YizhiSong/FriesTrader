@@ -13,12 +13,12 @@ def main():
     p.add_argument("--current-position-value", type=float, required=True)
     p.add_argument("--target-size", type=float, required=True)
     p.add_argument("--overweight-trigger-pct", type=float, required=True)
-    p.add_argument("--prior-consecutive-low-overweight-cycles", type=int, required=True,
+    p.add_argument("--prior-consecutive-overweight-cycles", type=int, required=True,
                     help="count of consecutive prior risk_check cycles (most recent first, not "
-                         "including this one) where conviction was 'low' AND current_position_value "
-                         "exceeded target_size by more than overweight_trigger_pct, from a "
-                         "trade_log.jsonl lookup")
-    p.add_argument("--min-low-conviction-cycles", type=int, required=True)
+                         "including this one) where conviction was 'low' or 'medium' AND "
+                         "current_position_value exceeded target_size by more than "
+                         "overweight_trigger_pct, from a trade_log.jsonl lookup")
+    p.add_argument("--min-overweight-conviction-cycles", type=int, required=True)
     args = p.parse_args()
 
     if args.target_size <= 0:
@@ -27,9 +27,9 @@ def main():
 
     overweight_pct = (args.current_position_value - args.target_size) / args.target_size
     is_overweight = overweight_pct > args.overweight_trigger_pct
-    qualifies_this_cycle = args.conviction == "low" and is_overweight
-    consecutive_cycles = (args.prior_consecutive_low_overweight_cycles + 1) if qualifies_this_cycle else 0
-    triggered = qualifies_this_cycle and consecutive_cycles >= args.min_low_conviction_cycles
+    qualifies_this_cycle = args.conviction != "high" and is_overweight
+    consecutive_cycles = (args.prior_consecutive_overweight_cycles + 1) if qualifies_this_cycle else 0
+    triggered = qualifies_this_cycle and consecutive_cycles >= args.min_overweight_conviction_cycles
     trim_dollar_amount = round(args.current_position_value - args.target_size, 2) if triggered else None
 
     print(json.dumps({
