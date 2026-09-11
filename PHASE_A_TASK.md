@@ -180,6 +180,20 @@ searches) and produce a thesis every run — this is what makes
 `exit_existing` reachable, since a slow deterioration with no sharp
 signal would otherwise go unnoticed.
 
+**Before researching a held position, pull its immediately prior
+thesis** — the last `"stage": "thesis"` line logged for this symbol,
+from the most recent prior commit to `pending_proposals.jsonl` that has
+one (walk back through `pending_proposals.jsonl`'s commit history; don't
+look back further than this holding period's start, i.e. stop at a
+commit before the position was last closed to zero, same scoping used
+elsewhere in this pipeline). Note any counter-evidence or `risk_flags`
+it named — this feeds the `high`-conviction check in Step 3. This is
+**not** carrying forward the conviction rating itself (Step 3 still
+rates conviction fresh, from only this run's own research) — it's
+making sure a real, still-open risk factor doesn't quietly disappear
+from the analysis just because today's search didn't happen to
+resurface it on its own.
+
 ## Step 3 — Synthesize thesis
 
 For each flagged candidate, produce the thesis record from `README.md`
@@ -226,6 +240,16 @@ conviction for the same symbol.
       counter-case — sell-side targets following a stock upward aren't
       independent confirmation. Resolve it on the company's own disclosed
       fundamentals.
+    - **For a held position, a counter-case already named in the
+      immediately prior thesis (see Step 2's prior-thesis pull) that
+      hasn't been explicitly resolved stays open.** Reaching `high`
+      again requires a specific, dated new fact that resolves or
+      materially changes it — the flagged sale program disclosed as
+      complete, a suit dismissed or settled, guidance reaffirmed after
+      the concern was raised — not a different day's more favorable
+      re-framing of the same unchanged fact, and not simply omitting it
+      from today's write-up. Cap at `medium` until it's genuinely
+      addressed.
   - At least one cited source is **primary or wire** — a company filing
     or press release, a regulatory/court document, or a wire service
     (Reuters, AP, Bloomberg, Dow Jones). Aggregator or content-farm
