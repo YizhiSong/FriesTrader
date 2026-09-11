@@ -457,17 +457,29 @@ you found>", "sources": ["Outlet Name: https://..."]`, same as the
 weekend-gap check above.
 
 **Loss-limit halt check (always runs, gates all new entries and top-ups):**
+Compute the loss-limit base fresh this cycle:
+- Call `get_portfolio` for `total_value` and `equity_value`.
+- Call `get_equity_positions` for every open position's `quantity` and
+  `average_buy_price`; sum `quantity * average_buy_price` across all of
+  them for the account's total open-position cost basis.
+- `unrealized_pnl_usd = equity_value - <total cost basis>`.
+- Call `get_realized_pnl` span=all (asset_classes=[equity]) for
+  `total_returns` — all-time realized P&L in dollars.
+- `net_deposits_usd = total_value - (all-time realized P&L + unrealized_pnl_usd)`.
+
 Call `get_realized_pnl` span=day and span=week (asset_classes=[equity])
 for today's and this week's realized `total_returns` in dollars (0 if no
-trades). Do **not** hand-compute the percentages — run
-`python3 scripts/pnl_pct.py --daily-realized-usd <day total_returns> --weekly-realized-usd <week total_returns> --starting-capital-usd <risk_rules.json starting_capital_usd> --daily-limit-pct <loss_limits.daily_loss_limit_pct_of_account> --weekly-limit-pct <loss_limits.weekly_loss_limit_pct_of_account>`
+trades). Run
+`python3 scripts/pnl_pct.py --daily-realized-usd <day total_returns> --weekly-realized-usd <week total_returns> --net-deposits-usd <net_deposits_usd computed above> --daily-limit-pct <loss_limits.daily_loss_limit_pct_of_account> --weekly-limit-pct <loss_limits.weekly_loss_limit_pct_of_account>`
 and use its JSON output (`daily_pnl_pct`, `weekly_pnl_pct`,
-`entries_halted`, `halt_reason`) directly. **If the script fails to run
-or `get_realized_pnl` can't be determined cleanly, fail safe: treat as
-breached** (`entries_halted = true`) rather than falling back to manual
-computation. Halts both new entries and top-ups (a top-up still spends
-cash/exposure, even though it skips the concurrency check).
-Log as `"stage": "loss_limit_check"`.
+`entries_halted`, `halt_reason`) directly. If the script fails to run or
+any of the calls above can't be determined cleanly, fail safe: treat as
+breached (`entries_halted = true`). Halts both new entries and top-ups
+(a top-up still spends cash/exposure, even though it skips the
+concurrency check).
+Log as `"stage": "loss_limit_check"`, including `net_deposits_usd` and
+its components (`total_value`, `equity_value`, open-position cost
+basis, all-time realized P&L).
 
 **Candidate priority order — new entries and top-ups compete equally
 (decide before any per-candidate check):**
@@ -584,7 +596,8 @@ every run, keyed off `"date"` (distinct dates), not `"timestamp"`.
 not append) — a short, plain-English recap of today's cycle for a quick
 mobile/GitHub read, not another machine format. A `# YYYY-MM-DD`
 heading, then prose/bullet sections covering only what actually
-happened this cycle (skip anything empty): the loss-limit check result;
+happened this cycle (skip anything empty): the loss-limit check result,
+including this cycle's computed `net_deposits_usd`;
 each held position's stop-loss/take-profit status (symbol, `stop_pct`
 used, gain/drawdown, and whether it triggered, fired a tier, sold, or
 is just holding); each new-entry/top-up candidate considered and its

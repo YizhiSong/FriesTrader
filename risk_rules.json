@@ -2,8 +2,6 @@
   "_comment": "These are hard numeric limits. Claude's reasoning/thesis step may NEVER override these values. Any proposed trade that violates a rule here must be rejected before it reaches review_equity_order, with no exceptions regardless of how strong the thesis sounds.",
 
   "account_number": "YOUR_ACCOUNT_NUMBER_HERE",
-  "starting_capital_usd": 500.00,
-  "starting_capital_usd_note": "Net deposits minus withdrawals, not live total_value -- excludes trading P&L so the loss-limit base doesn't drift with performance. Human updates by hand after each deposit/withdrawal.",
 
   "execution": {
     "mode": "dry_run",

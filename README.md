@@ -147,8 +147,9 @@ scheduled time.)
   only, no dependencies) you can run and inspect on its own:
   - `entry_gate.py` — the buy gate above, every blocking condition in one
     call.
-  - `pnl_pct.py` — daily/weekly loss-limit % against `starting_capital_usd`,
-    and the entries-halted decision.
+  - `pnl_pct.py` — daily/weekly loss-limit % against `net_deposits_usd`
+    (computed fresh each cycle, see PHASE_B_TASK.md), and the
+    entries-halted decision.
   - `stop_loss.py` — the fixed or volatility-scaled stop_pct (clamped,
     sample-stdev of daily returns), including the trailing-high reference
     price once a take-profit tier has fired, and the trigger decision.
@@ -241,10 +242,9 @@ improvements.
    every tool call in `PHASE_A_TASK.md`/`PHASE_B_TASK.md` (quotes,
    positions, orders, etc.) goes through it.
 2. Fill in `account_number` in `risk_rules.json` with your own Robinhood
-   account number, set `starting_capital_usd` to your real starting
-   balance, set `universe.watchlist_name` to a watchlist you've already
-   created and populated in your Robinhood account, and review every
-   other threshold — the defaults here are illustrative, not a
+   account number, set `universe.watchlist_name` to a watchlist you've
+   already created and populated in your Robinhood account, and review
+   every other threshold — the defaults here are illustrative, not a
    recommendation.
 3. Create a scan via the Robinhood MCP's `create_scan` tool — whatever
    screening conditions you like — then paste its ID into

@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 # Part of FriesTrader (https://github.com/YizhiSong/FriesTrader)
 # Copyright (c) 2026 Yizhi Song, MIT License -- see LICENSE
-"""Compute daily/weekly P&L % against starting_capital_usd and the loss-limit halt decision.
+"""Compute daily/weekly P&L % against the loss-limit base and the halt decision.
 
 Per risk_rules.json/PHASE_B_TASK.md spec: daily_pnl_pct and weekly_pnl_pct
-are always denominated against starting_capital_usd, never against
+are always denominated against net_deposits_usd (computed fresh each cycle
+per PHASE_B_TASK.md's loss-limit check -- total_value minus all-time
+realized+unrealized P&L, i.e. net deposits), never against
 get_realized_pnl's own total_rate_of_return (which is denominated against
 capital in the closed trades, a different and smaller base).
 """
@@ -19,20 +21,21 @@ def main():
                     help="get_realized_pnl span=day total_returns (0 if no trades today)")
     p.add_argument("--weekly-realized-usd", type=float, required=True,
                     help="get_realized_pnl span=week total_returns (0 if no trades this week)")
-    p.add_argument("--starting-capital-usd", type=float, required=True,
-                    help="risk_rules.json starting_capital_usd")
+    p.add_argument("--net-deposits-usd", type=float, required=True,
+                    help="computed this cycle per PHASE_B_TASK.md's loss-limit check -- "
+                         "total_value minus all-time realized+unrealized P&L")
     p.add_argument("--daily-limit-pct", type=float, required=True,
                     help="risk_rules.json loss_limits.daily_loss_limit_pct_of_account")
     p.add_argument("--weekly-limit-pct", type=float, required=True,
                     help="risk_rules.json loss_limits.weekly_loss_limit_pct_of_account")
     args = p.parse_args()
 
-    if args.starting_capital_usd <= 0:
-        print(json.dumps({"error": "starting_capital_usd must be positive"}), file=sys.stderr)
+    if args.net_deposits_usd <= 0:
+        print(json.dumps({"error": "net_deposits_usd must be positive"}), file=sys.stderr)
         sys.exit(1)
 
-    daily_pnl_pct = args.daily_realized_usd / args.starting_capital_usd
-    weekly_pnl_pct = args.weekly_realized_usd / args.starting_capital_usd
+    daily_pnl_pct = args.daily_realized_usd / args.net_deposits_usd
+    weekly_pnl_pct = args.weekly_realized_usd / args.net_deposits_usd
 
     daily_breach = (-daily_pnl_pct) >= args.daily_limit_pct
     weekly_breach = (-weekly_pnl_pct) >= args.weekly_limit_pct
