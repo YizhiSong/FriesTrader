@@ -643,6 +643,25 @@ no re-deciding anything. Convenience view only, not a second audit
 trail: `trade_log.jsonl` is still the source of truth, and if the two
 ever disagree, trust `trade_log.jsonl`.
 
+### Saving to the repo
+
+Once everything above is written, commit and push. This works whether
+the checkout is on `main` or a detached HEAD — don't check which, and
+don't try to fix it:
+```
+git add trade_log.jsonl trade_log_recent.md
+git commit -m "Phase B run <date> <timestamp>"
+git push origin HEAD:main
+```
+If the push is rejected, run `git pull --rebase origin main` once, then
+`git push origin HEAD:main` once more. If it still fails, stop retrying
+and report the exact error in the final summary. The commit stays
+local, so it can still be recovered.
+**Never** run `git checkout`, `git switch`, `git reset`, `git stash`,
+`git merge`, `git branch -f`, or any force-push to "fix" branch state.
+In an unattended run these can be blocked by the permission system,
+stalling the run with real fills never pushed.
+
 ## Hard rules
 
 - Never change `execution.mode` or any `risk_rules.json` value.

@@ -313,8 +313,8 @@ repo itself (`risk_rules.json`, `pending_proposals.jsonl`,
 
 ### Routine prompt templates
 
-The task specs don't cover scheduling, dates, or saving results — that's
-up to whatever runs them. These are the real prompts this project's live
+The task specs don't cover scheduling or dates, and only Phase B's
+covers saving results — the rest is up to whatever runs them. These are the real prompts this project's live
 deployment uses; copy one in and swap in your own account number.
 
 #### Phase A prompt
@@ -337,8 +337,8 @@ Hard stop: place_equity_order, review_equity_order, place_option_order, review_o
 When pending_proposals.jsonl is fully written, commit and push it back to this repo's main branch:
 git add pending_proposals.jsonl
 git commit -m "Phase A run <date> <timestamp>"
-git push origin main
-If the push is rejected (e.g. a race with another run), run 'git pull --rebase origin main' once and retry the push once. If it still fails, report the exact conflict/error in your final summary rather than force-pushing or discarding either side's changes.
+git push origin HEAD:main
+This works whether the checkout is on main or a detached HEAD — don't check which, and don't try to fix it. If the push is rejected (e.g. a race with another run), run 'git pull --rebase origin main' once and retry 'git push origin HEAD:main' once. Never run git checkout, git switch, git reset, git stash, git merge, git branch -f, or any force-push. If it still fails, report the exact conflict/error in your final summary rather than discarding either side's changes.
 
 End with a concise summary of what you screened/filtered/proposed, and confirm the push succeeded (include the resulting commit hash).
 ```
@@ -358,11 +358,11 @@ Read risk_rules.json fresh from this checkout every run — never assume prior v
 
 Follow PHASE_B_TASK.md's Steps 4-9 exactly, including the idempotency rule (key off each candidate's own proposal_date, not today's date), the dry-run cycle count rule, the priority/tiebreak rules, and the live-order gate (Step 6 for sells, Step 8 for buys). This task is authorized to place real live orders only under that gate's narrow, explicit condition. Do not add, remove, or loosen any condition of that gate on your own judgment, and never change execution.mode or any other value in risk_rules.json yourself.
 
-Append every decision to trade_log.jsonl (do not touch pending_proposals.jsonl except to read it). When done, commit and push trade_log.jsonl back to this repo's main branch:
-git add trade_log.jsonl
+Append every decision to trade_log.jsonl (do not touch pending_proposals.jsonl except to read it). When done, save to the repo exactly as PHASE_B_TASK.md Step 9's "Saving to the repo" describes:
+git add trade_log.jsonl trade_log_recent.md
 git commit -m "Phase B run <date> <timestamp>"
-git push origin main
-If the push is rejected (e.g. a race with another run), run 'git pull --rebase origin main' once and retry the push once. If it still fails, report the exact conflict/error in your final summary rather than force-pushing or discarding either side's changes — this file is an append-only audit trail, treat any conflict here as serious and report it clearly rather than guessing how to resolve it.
+git push origin HEAD:main
+This works whether the checkout is on main or a detached HEAD — don't check which, and don't try to fix it. If the push is rejected (e.g. a race with another run), run 'git pull --rebase origin main' once and retry 'git push origin HEAD:main' once. Never run git checkout, git switch, git reset, git stash, git merge, git branch -f, or any force-push. If it still fails, report the exact conflict/error in your final summary rather than discarding either side's changes — this file is an append-only audit trail, treat any conflict here as serious and report it clearly rather than guessing how to resolve it.
 
 End with a concise summary of what you checked, approved, rejected, and (if applicable) placed, and confirm the push succeeded (include the resulting commit hash).
 ```
