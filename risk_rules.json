@@ -79,7 +79,7 @@
 
   "sell_reentry_lock": {
     "gain_close_max_trading_days": 10,
-    "note": "Applies uniformly to every sell (stop_loss, take_profit, conviction_trim, exit_existing), not per-reason: a sell that closed at a gain vs. average cost locks re-entry for gain_close_max_trading_days trading days regardless of price; a sell that closed at a loss locks indefinitely on price alone, until price drops back below the sale price. See scripts/entry_gate.py."
+    "note": "Applies to every sell reason: a loss-closed sell locks re-entry until price drops below the sale price; a gain-closed sell locks until price drops below the sale price or gain_close_max_trading_days trading days pass, whichever comes first. See scripts/entry_gate.py."
   },
 
   "loss_limits": {
