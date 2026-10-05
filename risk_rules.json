@@ -110,5 +110,11 @@
     "enabled": true,
     "blackout_trading_days": 5,
     "note": "Skips new entries and top-ups when the symbol's next earnings report is within blackout_trading_days trading days (0 = today), so fresh money isn't put on a binary event. Never applies to sells."
+  },
+
+  "early_exit_guard": {
+    "enabled": true,
+    "window_trading_days": 5,
+    "note": "Within window_trading_days of a holding period's opening buy, an exit_existing sell requires a new_fact_date after the entry thesis's date -- a thesis can't reverse on facts it already had. Never blocks stop_loss/take_profit/conviction_trim."
   }
 }

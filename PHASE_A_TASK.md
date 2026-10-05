@@ -283,6 +283,19 @@ conviction for the same symbol.
 or `"exit_existing"` (no longer does) — never `"avoid"` (that's only for
 not-yet-held candidates).
 
+**Early-exit guard** (only if `early_exit_guard.enabled`): if this
+holding period's opening buy (the buy that took it from zero) was within
+the last `early_exit_guard.window_trading_days` trading days,
+`exit_existing` additionally requires a `new_fact_date` field — the
+disclosure date of a specific fact that drives the exit and was **not
+available** to the thesis that opened the position (i.e. dated after
+that opening buy's `proposal_date`). A re-weighting of facts the entry
+thesis already had — the same earnings print or guidance, an analyst
+rating change, price action, commentary — doesn't qualify. If no such
+fact exists, keep `direction: "long"` and lower `conviction` as the
+rubric dictates; the stop-loss and conviction-trim still protect the
+position.
+
 **Include `risk_flags`** for every `direction: "long"` candidate — an
 array of zero or more tags from this fixed set, based only on what this
 run's sourced research already found (no extra searches):

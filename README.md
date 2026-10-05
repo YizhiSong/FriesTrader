@@ -382,6 +382,7 @@ End with a concise summary of what you checked, approved, rejected, and (if appl
   "conviction": "low | medium | high",
   "invalidation": "what would prove this thesis wrong",
   "direction": "long | avoid | exit_existing",
+  "new_fact_date": "YYYY-MM-DD (exit_existing within early_exit_guard's window only)",
   "risk_flags": ["..."],
   "pct_below_52wk_high": 0.15,
   "sources": ["Outlet Name: https://...", "..."]

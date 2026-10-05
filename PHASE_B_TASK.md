@@ -51,7 +51,25 @@ checks use.
 `direction: "avoid"` candidates aren't processed further (already
 logged in Phase A). `exit_existing` candidates (Phase A's
 recommendation to sell a currently-held position) go straight into
-Step 6's sell-execution pass — selling is never gated. Split the
+Step 6's sell-execution pass — selling is never gated on price or tax,
+with one exception for thesis-driven exits only:
+
+**Early-exit guard** (only if `early_exit_guard.enabled`): find this
+holding period's opening buy in `trade_log.jsonl` (the live `order`
+that took the position from zero). If it was within the last
+`early_exit_guard.window_trading_days` trading days, the
+`exit_existing` candidate must carry a `new_fact_date` strictly later
+than that opening buy's `proposal_date`. If it's missing or not later,
+don't sell — log `"stage": "risk_check", "passed": false,
+"proposal_date": "<candidate's date>", "reason": "early exit guard --
+exit_existing within <N> trading days of the <opening-buy date> entry
+without a fact newer than the entry thesis (<new_fact_date or
+'none'>) -- sell skipped"` and treat it as held for the rest of the
+cycle (its stop-loss/take-profit/conviction-trim checks still run).
+This never applies to stop_loss, take_profit, or conviction_trim
+sells.
+
+Split the
 remaining `direction: "long"` candidates, using this snapshot, into:
 - **new**: not a live open position — a genuine new entry, the only
   kind that consumes a slot.
