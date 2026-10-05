@@ -104,5 +104,11 @@
     "lookback_trading_days": 20,
     "max_extension_pct": 0.10,
     "note": "Hard ceiling on buys -- skips the buy this cycle if current_price is more than max_extension_pct above its own lookback_trading_days-day moving average, same principle as entry_price_gap. Never applies to sells."
+  },
+
+  "earnings_blackout": {
+    "enabled": true,
+    "blackout_trading_days": 5,
+    "note": "Skips new entries and top-ups when the symbol's next earnings report is within blackout_trading_days trading days (0 = today), so fresh money isn't put on a binary event. Never applies to sells."
   }
 }

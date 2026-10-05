@@ -401,6 +401,16 @@ gap, average, or lock condition:**
   <sell_reentry_lock.gain_close_max_trading_days>` and
   `--trading-days-since-sell <trading days elapsed since that sell
   date>`.
+- Earnings blackout inputs, only if `earnings_blackout.enabled` is
+  `true`: call `get_earnings_results` for this symbol and take the
+  earliest entry with `eps.actual: null` (unreported — include it even
+  if `report.verified` is false). Pass `--earnings-blackout-trading-days
+  <earnings_blackout.blackout_trading_days>` and
+  `--trading-days-until-earnings <trading days from today to that
+  report.date, 0 if today>`. Omit `--trading-days-until-earnings` if
+  there's no unreported entry (e.g. an ETF, or `not_found`). If the
+  call itself fails, skip the buy this cycle (same as a script failure
+  below).
 
 Run:
 `python3 scripts/entry_gate.py --fresh-ask <ask> --thesis-price
@@ -410,9 +420,11 @@ Run:
 [--wash-sale-enabled --wash-sale-lookback-days <N> --loss-sale-dates
 <dates>] --today <date> [--last-sell-reason <reason> --last-sell-price
 <price> --last-sell-date <date> --last-sell-was-gain <true|false>
-[--reentry-lock-max-trading-days <N> --trading-days-since-sell <N>]]`
+[--reentry-lock-max-trading-days <N> --trading-days-since-sell <N>]]
+[--earnings-blackout-trading-days <N> [--trading-days-until-earnings
+<N>]]`
 and use its JSON output (`entry_price_gap`, `entry_extension`,
-`wash_sale_avoidance`, `sell_reentry_lock`, `passed`,
+`wash_sale_avoidance`, `sell_reentry_lock`, `earnings_blackout`, `passed`,
 `blocking_conditions`, `action`) directly rather than recomputing any
 of it.
 
@@ -444,6 +456,11 @@ false, "proposal_date": "<candidate's date>"` line per entry in
   <last-sell-date> (reason: <last-sell-reason>)"` (for a gain-closed
   sell still locked only on the time condition, append `", N of <max>
   trading days elapsed"`)
+- `earnings_blackout`: `"reason": "earnings blackout -- next earnings
+  <report.date> (<timing>) is <trading_days_until_earnings> trading
+  days away, within earnings_blackout.blackout_trading_days
+  (<threshold>) -- buy skipped this cycle"` (add `"position_action":
+  "top_up"` if it's a top-up candidate)
 
 **If `passed` is true but `entry_price_gap.gap_pct` is still
 non-trivial**, re-check against the thesis's `invalidation` criteria —

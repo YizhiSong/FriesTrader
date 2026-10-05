@@ -109,7 +109,8 @@ candidates are bought:
 - **Buy gate** (`entry_gate.py`). The buy is skipped this cycle if the
   price is more than `entry_price_gap.max_pct` above the thesis price,
   more than `entry_extension.max_extension_pct` above its 20-day average,
-  or under a wash-sale or sell-re-entry lock.
+  under a wash-sale or sell-re-entry lock, or within
+  `earnings_blackout.blackout_trading_days` of its next earnings report.
 - **Rank** (`rank_candidates.py`). By conviction, then fewer `risk_flags`,
   then larger percent below the 52-week high.
 - **Size** (`position_sizing.py`). In ranked order, each candidate is
@@ -146,7 +147,7 @@ scheduled time.)
   of hand-computing anything, each a standalone Python 3 script (stdlib
   only, no dependencies) you can run and inspect on its own:
   - `entry_gate.py` — the buy gate above, every blocking condition in one
-    call.
+    call (including the pre-earnings blackout).
   - `pnl_pct.py` — daily/weekly loss-limit % against `net_deposits_usd`
     (computed fresh each cycle, see PHASE_B_TASK.md), and the
     entries-halted decision.

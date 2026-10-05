@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Single buy/top-up gate for one candidate, combining every independent
 per-symbol condition that can block a buy: entry_price_gap, entry_extension,
-wash_sale_avoidance (buy-side guard), and the sell re-entry lock. Does NOT
+wash_sale_avoidance (buy-side guard), the sell re-entry lock, and
+earnings_blackout. Does NOT
 cover position_sizing.py's slot/cash allocation, which is a joint decision
 across all of a cycle's candidates, not a per-symbol one.
 """
@@ -43,6 +44,12 @@ def main():
                          "indefinite lock)?")
     p.add_argument("--reentry-lock-max-trading-days", type=int)
     p.add_argument("--trading-days-since-sell", type=int)
+
+    p.add_argument("--earnings-blackout-trading-days", type=int,
+                    help="earnings_blackout.blackout_trading_days; omit if disabled")
+    p.add_argument("--trading-days-until-earnings", type=int,
+                    help="trading days from today to the next unreported earnings date "
+                         "(0 = today); omit if none scheduled")
 
     args = p.parse_args()
     result = {}
@@ -112,8 +119,18 @@ def main():
         }
     result["sell_reentry_lock"] = {"blocked": reentry_locked, "detail": reentry_detail}
 
+    earnings_blocked = (args.earnings_blackout_trading_days is not None
+                        and args.trading_days_until_earnings is not None
+                        and 0 <= args.trading_days_until_earnings <= args.earnings_blackout_trading_days)
+    result["earnings_blackout"] = {
+        "blocked": earnings_blocked,
+        "trading_days_until_earnings": args.trading_days_until_earnings,
+        "blackout_trading_days": args.earnings_blackout_trading_days,
+    }
+
     blocking = [name for name in
-                ("entry_price_gap", "entry_extension", "wash_sale_avoidance", "sell_reentry_lock")
+                ("entry_price_gap", "entry_extension", "wash_sale_avoidance", "sell_reentry_lock",
+                 "earnings_blackout")
                 if result[name]["blocked"]]
     result["passed"] = len(blocking) == 0
     result["blocking_conditions"] = blocking
