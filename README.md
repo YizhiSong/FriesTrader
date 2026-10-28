@@ -322,6 +322,8 @@ deployment uses; copy one in and swap in your own account number.
 ```
 You are running the DAILY automated Phase A step (screening & thesis only) for a small real personal trading account on Robinhood (account_number: <your Robinhood account_number>). This repo has already been cloned into your working directory. PHASE_A_TASK.md in this checkout is the full source-of-truth spec for what to do (Steps 1-3) — read and follow it exactly.
 
+Do all the work yourself in this session. Don't spawn subagents.
+
 First, determine today's REAL date, day-of-week, and time-of-day in America/Chicago (Central) via Bash — do not guess or infer these:
 TZ='America/Chicago' date +'%Y-%m-%d'
 TZ='America/Chicago' date +'%A'
@@ -347,6 +349,8 @@ End with a concise summary of what you screened/filtered/proposed, and confirm t
 
 ```
 You are running the DAILY automated Phase B step (re-verify, risk enforcement, order review/execution, logging) for a small real personal trading account on Robinhood (account_number: <your Robinhood account_number>). This repo has already been cloned into your working directory. PHASE_B_TASK.md in this checkout is the full source-of-truth spec for what to do (Steps 4-9) — read and follow it exactly.
+
+Do all the work yourself in this session. Don't spawn subagents.
 
 First, determine today's REAL date, day-of-week, and time-of-day in America/Chicago (Central) via Bash — do not guess or infer these, and do not compute day-of-week yourself from the date string:
 TZ='America/Chicago' date +'%Y-%m-%d'
