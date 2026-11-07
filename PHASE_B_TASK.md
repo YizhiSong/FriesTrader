@@ -273,6 +273,13 @@ cycle, resolve them first, in this priority:
      3. Otherwise wait ~15 seconds and check once more; use whatever
         `state` comes back, terminal or not — never poll more than
         twice or block the cycle waiting for a fill.
+     **Duplicate protection:** before placing, compute one `ref_id` per
+     logical order: `python3 -c "import uuid; print(uuid.uuid5(uuid.NAMESPACE_URL,
+     '<today>|<symbol>|<side>|<reason>|<tier_gain_pct or none>'))"`. Pass it
+     to `place_equity_order` and log it. If the call fails or its outcome is
+     unclear, first check `get_equity_orders` for this symbol today. If a
+     matching order exists, use it and don't place another. Otherwise retry
+     once with the same `ref_id`.
      Log `"stage": "order", "mode": "live", "action": "<buy|sell>",
      "reason": "<same reason as the pre-trade entry>", "placed": true,
      "order_id": "<id>", "order_state": "<confirmed state from get_equity_orders>",
