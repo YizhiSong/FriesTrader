@@ -121,14 +121,19 @@ changes what the stop protects — it does not affect the take-profit
 gain calculation below, which always measures gain from average cost
 regardless of `stop_reference_basis`.
 
-**If the script fails to run**, do not guess a result: treat this
-position as if a loss-limit breach applied this cycle (`entries_halted
-= true` for new entries/top-ups, this position itself excluded from
-any sell decision) and log `"stage": "stop_loss"` with
-`"stop_pct_used": null, "triggered": false, "action":
-"halt_entries_check_manually", "notes": "stop_loss.py failed to run —
-verify this position's stop manually before next cycle"`. Do not fall
-back to manual computation.
+**If the script fails to run**, set `entries_halted = true` for new
+entries/top-ups this cycle and apply the flat fallback stop, the only
+hand computation allowed here: `drawdown_pct = (average cost - fresh
+quote) / average cost`.
+- If `drawdown_pct >= stop_loss.hard_stop_pct`, treat it as a triggered
+  stop (full-position sell in Step 6) and log `"stage": "stop_loss"` with
+  `"stop_pct_used": <hard_stop_pct>, "stop_reference_basis":
+  "average_cost", "triggered": true, "action": "sell_full_position",
+  "fallback_reason": "stop_loss.py failed to run"`.
+- Otherwise, or if the quote or average cost is unavailable, log
+  `"stage": "stop_loss"` with `"stop_pct_used": null, "triggered": false,
+  "action": "halt_entries_check_manually", "notes": "stop_loss.py failed
+  to run — verify this position's stop manually before next cycle"`.
 
 If `triggered` is true — immediate full-position sell, no thesis
 review, never blocked by a loss-limit halt, executed in Step 6's
@@ -149,7 +154,8 @@ the start of this step, before any of this cycle's sells execute in
 Step 6), check `trade_log.jsonl` for `"stage": "take_profit"` entries
 for this symbol at each tier's exact `gain_pct`, logged since the
 position's quantity last reached zero (a full exit) — collect the
-`gain_pct` values already fired this holding period.
+`gain_pct` values already fired this holding period, ignoring entries
+with `"action": "superseded_by_full_exit"`.
 
 Run:
 `python3 scripts/take_profit.py --average-cost <avg cost> --current-price <fresh quote> --quantity <quantity> --tiers <risk_rules.json take_profit.tiers as "gain_pct:sell_fraction" pairs, e.g. "0.15:0.25,0.30:0.25,0.50:0.25"> [--already-fired <comma-separated gain_pct values already fired this holding period>]`
@@ -159,9 +165,9 @@ of it — the script already handles the ascending-order,
 cascading-quantity logic for **when a single cycle's gain has jumped
 past more than one not-yet-fired tier at once**.
 
-**If the script fails to run**, treat it like a stop-loss script
-failure: `entries_halted = true` for new entries/top-ups this cycle,
-exclude this position from any sell decision, and log `"stage":
+**If the script fails to run**, set `entries_halted = true` for new
+entries/top-ups this cycle, fire no tier for this position (its
+stop-loss result and any `exit_existing` still apply), and log `"stage":
 "take_profit"` with `"triggered": false, "action":
 "halt_entries_check_manually", "notes": "take_profit.py failed to run
 — verify this position's tiers manually before next cycle"`. Do not
@@ -205,10 +211,9 @@ and use its JSON output directly (`overweight_pct`, `qualifies_this_cycle`,
 `consecutive_cycles`, `triggered`, `trim_dollar_amount`, `action`) rather
 than recomputing any of it.
 
-**If the script fails to run**, treat it like a stop-loss/take-profit
-script failure: `entries_halted = true` for new entries/top-ups this
-cycle, exclude this position from any sell decision, and log `"stage":
-"conviction_trim"` with `"triggered": false, "action":
+**If the script fails to run**, set `entries_halted = true` for new
+entries/top-ups this cycle, skip the trim for this position (its other
+sell results still apply), and log `"stage": "conviction_trim"` with `"triggered": false, "action":
 "halt_entries_check_manually", "notes": "conviction_trim.py failed to
 run — verify this position manually before next cycle"`.
 
@@ -235,6 +240,16 @@ this procedure for each, before touching anything buy-side below — a
 sell must actually clear before its freed cash/slot can be counted
 toward a same-cycle buy, and before today's realized P&L (loss-limit
 check, further down) can see it.
+
+**One exit per position:** when a position has more than one sell this
+cycle, resolve them first, in this priority:
+- A triggered stop-loss, then an `exit_existing`, is the only order
+  placed for that position, for its full quantity. Don't place its
+  take-profit or conviction-trim sells; log a line for each with
+  `"action": "superseded_by_full_exit"` and the stage it came from.
+- If a take-profit tier and a conviction trim both fired, place the tier
+  first, then reduce the trim to what's still above `target_size`; skip
+  the trim if nothing is.
 
 1. **Always** call `review_equity_order` first — a preview, never places
    anything.
