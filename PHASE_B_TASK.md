@@ -258,8 +258,9 @@ check, further down) can see it.
      3. Otherwise wait ~15 seconds and check once more; use whatever
         `state` comes back, terminal or not — never poll more than
         twice or block the cycle waiting for a fill.
-     Log `"stage": "order", "mode": "live", "placed": true, "order_id":
-     "<id>", "order_state": "<confirmed state from get_equity_orders>",
+     Log `"stage": "order", "mode": "live", "action": "<buy|sell>",
+     "reason": "<same reason as the pre-trade entry>", "placed": true,
+     "order_id": "<id>", "order_state": "<confirmed state from get_equity_orders>",
      "fill_price": <average_price if filled/partially_filled, else
      null>, "fill_quantity": <cumulative_quantity if filled/partially_filled,
      else null>` in addition to the pre-trade `quote_bid`/`quantity`
