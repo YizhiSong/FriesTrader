@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Single buy/top-up gate for one candidate, combining every independent
 per-symbol condition that can block a buy: entry_price_gap, entry_extension,
-wash_sale_avoidance (buy-side guard), the sell re-entry lock, and
-earnings_blackout. Does NOT
+wash_sale_avoidance (buy-side guard), the sell re-entry lock,
+earnings_blackout, and earnings_since_thesis. Does NOT
 cover position_sizing.py's slot/cash allocation, which is a joint decision
 across all of a cycle's candidates, not a per-symbol one.
 """
@@ -50,6 +50,10 @@ def main():
     p.add_argument("--trading-days-until-earnings", type=int,
                     help="trading days from today to the next unreported earnings date "
                          "(0 = today); omit if none scheduled")
+
+    p.add_argument("--thesis-date", help="candidate's proposal_date; omit if earnings_blackout disabled")
+    p.add_argument("--last-report-date", help="report.date of the latest reported earnings; omit if none")
+    p.add_argument("--last-report-timing", choices=["am", "pm"], help="report.timing of that report; omit if unknown")
 
     args = p.parse_args()
     result = {}
@@ -128,9 +132,21 @@ def main():
         "blackout_trading_days": args.earnings_blackout_trading_days,
     }
 
+    # Same-day reports count as after the thesis unless known to be pre-market.
+    since_thesis = bool(args.thesis_date and args.last_report_date
+                        and (args.last_report_date > args.thesis_date
+                             or (args.last_report_date == args.thesis_date
+                                 and args.last_report_timing != "am")))
+    result["earnings_since_thesis"] = {
+        "blocked": since_thesis,
+        "thesis_date": args.thesis_date,
+        "last_report_date": args.last_report_date,
+        "last_report_timing": args.last_report_timing,
+    }
+
     blocking = [name for name in
                 ("entry_price_gap", "entry_extension", "wash_sale_avoidance", "sell_reentry_lock",
-                 "earnings_blackout")
+                 "earnings_blackout", "earnings_since_thesis")
                 if result[name]["blocked"]]
     result["passed"] = len(blocking) == 0
     result["blocking_conditions"] = blocking

@@ -429,7 +429,12 @@ gap, average, or lock condition:**
   <earnings_blackout.blackout_trading_days>` and
   `--trading-days-until-earnings <trading days from today to that
   report.date, 0 if today>`. Omit `--trading-days-until-earnings` if
-  there's no unreported entry (e.g. an ETF, or `not_found`). If the
+  there's no unreported entry (e.g. an ETF, or `not_found`).
+  From the same response, take the latest entry with a non-null
+  `eps.actual` and pass `--thesis-date <candidate's proposal_date>`,
+  `--last-report-date <its report.date>` and `--last-report-timing
+  <its report.timing>`. Omit the last two if there's no reported entry,
+  and omit only `--last-report-timing` if the timing is missing. If the
   call itself fails, skip the buy this cycle (same as a script failure
   below).
 
@@ -443,9 +448,11 @@ Run:
 <price> --last-sell-date <date> --last-sell-was-gain <true|false>
 [--reentry-lock-max-trading-days <N> --trading-days-since-sell <N>]]
 [--earnings-blackout-trading-days <N> [--trading-days-until-earnings
-<N>]]`
+<N>]] [--thesis-date <date> [--last-report-date <date>
+[--last-report-timing <am|pm>]]]`
 and use its JSON output (`entry_price_gap`, `entry_extension`,
-`wash_sale_avoidance`, `sell_reentry_lock`, `earnings_blackout`, `passed`,
+`wash_sale_avoidance`, `sell_reentry_lock`, `earnings_blackout`,
+`earnings_since_thesis`, `passed`,
 `blocking_conditions`, `action`) directly rather than recomputing any
 of it.
 
@@ -482,6 +489,9 @@ false, "proposal_date": "<candidate's date>"` line per entry in
   days away, within earnings_blackout.blackout_trading_days
   (<threshold>) -- buy skipped this cycle"` (add `"position_action":
   "top_up"` if it's a top-up candidate)
+- `earnings_since_thesis`: `"reason": "earnings reported <last_report_date>
+  (<timing>) after the <thesis_date> thesis -- buy skipped until a new
+  thesis"` (add `"position_action": "top_up"` if it's a top-up candidate)
 
 **If `passed` is true but `entry_price_gap.gap_pct` is still
 non-trivial**, re-check against the thesis's `invalidation` criteria —

@@ -250,6 +250,10 @@ conviction for the same symbol.
       re-framing of the same unchanged fact, and not simply omitting it
       from today's write-up. Cap at `medium` until it's genuinely
       addressed.
+  - The thesis states the latest reported EPS against its estimate, from
+    `get_earnings_results`. A miss counts as counter-evidence: name it and
+    resolve it under the rule above, or cap at `medium`. Doesn't apply if
+    there's no reported quarter (e.g. an ETF).
   - At least one cited source is **primary or wire** — a company filing
     or press release, a regulatory/court document, or a wire service
     (Reuters, AP, Bloomberg, Dow Jones). Aggregator or content-farm
